@@ -1,0 +1,14 @@
+Match Your Colors v1.1
+Supports Helldivers 2 Steam build 25480438 / EXE 1.8.46015.0.
+
+Install Bingus Shared Loader v18 or newer and import this ZIP into Arsenal or
+HD2MM. Enable and deploy both, then restart Helldivers 2. Keep the shared
+loader as the winning Wwise startup replacement.
+
+Recolors your own helmet to match your armor, or your armor to match your
+helmet (Mod Options Menu, MODS tab: Color Matching). Only your Helldiver, only
+on your screen. Visors, lenses and lights keep their colors.
+
+Log: %LOCALAPPDATA%/CowboyBingus/Helldivers2/Logs/MatchYourColors.log
+
+https://github.com/CowboyBingus/BingusSharedLoader/releases/latest

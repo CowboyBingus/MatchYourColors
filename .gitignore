@@ -1,0 +1,8 @@
+/build/
+/releases/
+__pycache__/
+*.pyc
+.env
+.env.*
+# Research: IDA databases, game-data extracts, captures and probes stay local, never in the repository.
+/research/
