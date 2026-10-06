@@ -11,11 +11,14 @@
 --   * every CHECK_FRAMES frames one recolored material per runtime texture is read (two reads each): if the
 --     game put its original LUT back, the recolor is applied again;
 --   * a change (re-equip, respawn, a preview, an option) starts a job; a running job gets BUDGET seconds of
---     work per frame and its result is applied in one frame.
+--     work per frame and its result is applied in one frame, refilling pooled textures (src/recolor.lua; making
+--     a texture waits for the render thread, so new ones are made only when the pool has none of the size);
+--   * new analyses go to the disk cache in a save job of its own (BUDGET per frame) once no recolor job runs and
+--     the UI preview has been closed for SAVE_DELAY_FRAMES frames, at shutdown at the latest.
 -- No memory writes: the recolor goes through engine calls (src/engine.lua).
 local ffi = require('ffi')
 
-local Addon = {VERSION = '1.1'}
+local Addon = {VERSION = '1.2'}
 Addon.REVISION = 'v' .. Addon.VERSION
 Addon.MOD_ID = 'cowboybingus.match_your_colors'
 Addon.OPTION_MODE = 'cowboybingus.match_your_colors.mode'
@@ -25,6 +28,7 @@ Addon.VERIFY_FRAMES = 120
 Addon.CHECK_FRAMES = 30
 Addon.UI_GATE_FRAMES = 4
 Addon.BUDGET = 0.0015
+Addon.SAVE_DELAY_FRAMES = 300
 Addon.FAILURE_LIMIT = 3
 Addon.REGISTER_FRAMES = {1, 60, 180, 420, 900, 1800}
 Addon.GAME_SHA256 = '2E2C3B7C2500646DADD5F2B4C6E0504DBB7E7896139F64CDDC0D1813C718F51E'
@@ -46,9 +50,13 @@ function Addon.new(m)
     local state = {frame = 0, next_resolve = 0, next_verify = 0, next_check = 0, identity = nil, watch = nil, slot = nil,
                    dirty = false, job = nil, request = nil, failures = {}, why = nil, budget_end = 0,
                    options = {mode = Recolor.HELMET_FROM_ARMOR, keep_sets = true}, holder = {}, status = 'starting'}
-    local controller = Recolor.controller({Engine = m.Engine, Avatar = Avatar, memory = memory, native = m.native})
-    -- The UI preview's units are other units than the avatar's, showing maybe another pair: own textures and bindings.
-    local ui_controller = Recolor.controller({Engine = m.Engine, Avatar = Avatar, memory = memory, native = m.native})
+    local pool = Recolor.pool({Engine = m.Engine, native = m.native, memory = memory})
+    local controller = Recolor.controller({Engine = m.Engine, Avatar = Avatar, memory = memory, native = m.native,
+                                           pool = pool})
+    -- The UI preview's units are other units than the avatar's, showing maybe another pair: own textures and
+    -- bindings, from the same pool.
+    local ui_controller = Recolor.controller({Engine = m.Engine, Avatar = Avatar, memory = memory, native = m.native,
+                                              pool = pool})
     local read = Avatar.reader(memory) -- one buffer for every resolve
     local probe = {} -- the identity table every check refills; adopted identities are copies
     local job_deps = {Files = m.Files, Slim = m.Slim, Texture = m.Texture, Colour = m.Colour, Transfer = m.Transfer,
@@ -56,7 +64,7 @@ function Addon.new(m)
                       Appearance = m.Appearance,
                       cache_path = m.cache_path,
                       build = {exe_sha256 = Addon.EXE_SHA256, game_sha256 = Addon.GAME_SHA256}}
-    local self = {state = state, controller = controller, ui_controller = ui_controller}
+    local self = {state = state, controller = controller, ui_controller = ui_controller, pool = pool}
 
     local function maybe_yield()
         if time() >= state.budget_end then coroutine.yield() end
@@ -128,18 +136,24 @@ function Addon.new(m)
         return table.concat({r.mode, r.keep_sets and 1 or 0, r.helmet, r.armor, r.body}, ':')
     end
 
-    -- After applying: the cache status once, and new analyses written to disk (after the colors are on).
-    local function save_cache(reader)
+    -- After applying: the cache status once; new analyses are written later by the save job (save_step).
+    local function note_cache(reader, frame)
         if reader.cache_status and not state.cache_logged then
             state.cache_logged = true
             note('Analysis cache: ' .. reader.cache_status .. '.')
         end
-        local saved, why = reader.save()
-        if not saved then note('Analysis cache not saved: ' .. tostring(why)) end
+        if reader.dirty then state.save_at = frame + Addon.SAVE_DELAY_FRAMES end
     end
 
-    -- The log lines of an applied result.
-    local function log_result(result, request, count, reader)
+    -- Applies a result with `ctl`; the count, the apply's time in ms and how many textures had to be made.
+    local function timed_apply(ctl, result, identity, slot, frame)
+        local made, started = pool.made, time()
+        local count = ctl.apply(result, identity, slot, frame)
+        return count, (time() - started) * 1000, pool.made - made
+    end
+
+    -- The log lines of an applied result (applied: the apply's ms and the textures it made).
+    local function log_result(result, request, count, reader, applied)
         if result.action ~= 'apply' then
             if result.reason ~= state.last_reason then note('Original colors (' .. tostring(result.reason) .. ').') end
             return
@@ -148,8 +162,9 @@ function Addon.new(m)
         for _ in pairs(result.luts) do luts = luts + 1 end
         local job = state.last_job
         note(string.format('Recolored %d materials (%s, %d LUTs; job %.1f ms of work over %d frames, longest '
-            .. 'slice %.1f ms in %s, heap %+.0f KB).', count, Addon.MODE_NAMES[request.mode], luts,
-            job.work * 1000, job.frames, job.longest * 1000, tostring(job.longest_stage), job.heap_kb))
+            .. 'slice %.1f ms in %s, heap %+.0f KB; applied in %.2f ms, %d new textures).', count,
+            Addon.MODE_NAMES[request.mode], luts, job.work * 1000, job.frames, job.longest * 1000,
+            tostring(job.longest_stage), job.heap_kb, applied.ms, applied.made))
         if reader and reader.reads > 0 then
             note(string.format('Game data read so far: %d reads, %.1f MB, longest read %.1f ms (%d KB).',
                 reader.reads, reader.bytes / 1048576, reader.longest * 1000, reader.longest_size / 1024))
@@ -167,13 +182,14 @@ function Addon.new(m)
             return
         end
         local key = ui_controller.key
-        local count = ui_controller.apply(result, {units_at = ui.where.units_at, body = request.body}, nil, frame)
-        if reader then save_cache(reader) end
+        local count, ms, made = timed_apply(ui_controller, result, {units_at = ui.where.units_at, body = request.body},
+                                            nil, frame)
+        if reader then note_cache(reader, frame) end
         if result.action == 'apply' and (count > 0 or result.key ~= key) then
             local job = state.last_job
             note(string.format('Preview recolored: %d materials (helmet %08x, armor %08x; job %.1f ms of work over %d '
-                .. 'frames, longest slice %.1f ms).', count, request.helmet, request.armor, job.work * 1000, job.frames,
-                job.longest * 1000))
+                .. 'frames, longest slice %.1f ms; applied in %.2f ms, %d new textures).', count, request.helmet,
+                request.armor, job.work * 1000, job.frames, job.longest * 1000, ms, made))
         end
     end
 
@@ -211,10 +227,10 @@ function Addon.new(m)
         if request.target == 'ui' then return finish_ui(result, request, frame, reader) end
         local now = still_current(request, frame)
         if not now then return end
-        local count = controller.apply(result, now, Avatar.preview_slot(memory, now, read), frame)
-        if reader then save_cache(reader) end
+        local count, ms, made = timed_apply(controller, result, now, Avatar.preview_slot(memory, now, read), frame)
+        if reader then note_cache(reader, frame) end
         state.status = result.action == 'apply' and 'active' or ('vanilla: ' .. tostring(result.reason))
-        log_result(result, request, count, reader)
+        log_result(result, request, count, reader, {ms = ms, made = made})
         state.last_reason = result.reason
     end
 
@@ -255,6 +271,40 @@ function Addon.new(m)
             return Recolor.job(job_deps, state.holder, request, maybe_yield)
         end)
         run_job(frame)
+    end
+
+    -- The disk cache's save job, due SAVE_DELAY_FRAMES frames after a recolor job made new analyses: it waits while
+    -- the UI preview is shown (browsing the Armory makes many), runs only on frames without a recolor job, with
+    -- BUDGET of work per frame, and pauses between entries (v1.1 wrote the whole file on the frame of a recolor).
+    local function save_step(frame)
+        local reader = state.holder.pipeline
+        if not reader then
+            state.save_at = nil
+            return
+        end
+        if state.ui and state.ui.shown then
+            state.save_at = frame + Addon.SAVE_DELAY_FRAMES
+            return
+        end
+        if not state.saving then
+            state.saving = coroutine.create(function() return reader.save(maybe_yield) end)
+            state.save_work, state.save_frames, state.save_slice = 0, 0, 0
+        end
+        local started = time()
+        state.budget_end = started + Addon.BUDGET
+        local ok, saved, why = coroutine.resume(state.saving)
+        local slice = time() - started
+        state.save_work, state.save_frames = state.save_work + slice, state.save_frames + 1
+        if slice > state.save_slice then state.save_slice = slice end
+        if coroutine.status(state.saving) ~= 'dead' then return end
+        state.saving = nil
+        state.save_at = reader.dirty and frame + Addon.SAVE_DELAY_FRAMES or nil
+        if ok and saved then
+            note(string.format('Analysis cache saved (%.1f ms of work over %d frames, longest slice %.1f ms).',
+                state.save_work * 1000, state.save_frames, state.save_slice * 1000))
+        else
+            note('Analysis cache not saved: ' .. tostring(ok and why or saved))
+        end
     end
 
     -- Every CHECK_FRAMES frames: one recolored material per runtime texture still holds its texture.
@@ -314,6 +364,10 @@ function Addon.new(m)
         if changed or frame >= state.next_verify then verify(frame, changed) end
         if frame >= state.next_check then check_bindings(frame) end
         preview_and_jobs(frame)
+        -- A second piece of work this frame only when the cache save is due and no recolor job ran this frame.
+        if state.save_at and frame >= state.save_at and not state.job and state.job_frame ~= frame then
+            save_step(frame)
+        end
     end
 
     -- An option from Mod Options Menu (or its default).
@@ -334,6 +388,10 @@ function Addon.new(m)
     -- starts again from a fresh resolve.
     function self.pause(reason)
         state.job, state.request = nil, nil
+        if state.saving then -- an unfinished save starts over later
+            state.saving = nil
+            if state.holder.pipeline then state.holder.pipeline.dirty = true end
+        end
         if state.holder.pipeline then state.holder.pipeline.close() end
         controller.restore(state.frame)
         ui_controller.restore(state.frame)
@@ -342,11 +400,23 @@ function Addon.new(m)
         note('Paused (' .. tostring(reason) .. '); original colors until the addon resumes.')
     end
 
+    -- At shutdown: a cache save still due (or under way) is written at once; the game is closing.
+    local function save_at_shutdown()
+        local reader = state.holder.pipeline
+        if not (reader and (state.saving or state.save_at)) then return end
+        if state.saving then reader.dirty = true end
+        local ok, saved, why = pcall(reader.save)
+        note(ok and saved and 'Analysis cache saved at shutdown.'
+             or ('Analysis cache not saved: ' .. tostring(ok and why or saved)))
+    end
+
     -- The guard's stop: original colors back, except at shutdown (the game is closing).
     function self.stopped(reason)
         if reason == 'shutdown' then
-            note('Shutdown: ' .. state.status .. string.format(' (applied %d, restored %d, destroyed %d).',
-                controller.applied, controller.restored, controller.destroyed))
+            save_at_shutdown()
+            note('Shutdown: ' .. state.status .. string.format(' (applied %d, restored %d; textures made %d, '
+                .. 'refilled %d, destroyed %d).', controller.applied, controller.restored, pool.made, pool.refilled,
+                pool.destroyed))
             return
         end
         state.job = nil
@@ -358,9 +428,9 @@ function Addon.new(m)
 
     -- Everything but the frame step, the idle check and the job's yield runs on few frames: interpreted.
     if type(jit) == 'table' and type(jit.off) == 'function' then
-        for _, fn in ipairs({locate_ui, adopt, lose, resolve, verify, request_key, save_cache, log_result, finish_ui,
-                             still_current, finish, run_job, request_for, start_job, check_bindings, self.set_option,
-                             self.pause, self.stopped}) do
+        for _, fn in ipairs({locate_ui, adopt, lose, resolve, verify, request_key, note_cache, timed_apply, log_result,
+                             finish_ui, still_current, finish, run_job, request_for, start_job, save_step,
+                             check_bindings, self.set_option, self.pause, save_at_shutdown, self.stopped}) do
             jit.off(fn, true)
         end
     end

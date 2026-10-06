@@ -19,8 +19,9 @@
 --   T <pattern texture> <area>
 --   L <lut> <width> <height> <bytes>, a newline, then the LUT's (or pattern texture's) float32 values as raw bytes
 --
--- The file is read and written only inside a recolor job, never on an idle frame; it is written through a
--- temporary file and a rename, so an interrupted save leaves the previous file. Nothing in it is executed.
+-- The file is read inside the session's first recolor job and written by the addon's save job (src/addon.lua),
+-- both pausing between entries, never on an idle frame; it is written through a temporary file and a rename, so
+-- an interrupted save leaves the previous file. Nothing in it is executed.
 local ffi = require('ffi')
 
 local Cache = {}
@@ -108,8 +109,8 @@ local function encode_samples(parts, samples)
 end
 
 -- The whole file for analyses {key -> analysis} (at most MAX_ENTRIES, most recently used first: order) and the
--- shared samples (none: no block).
-function Cache.encode(header, analyses, order, samples)
+-- shared samples (none: no block). yield (optional) is called after each entry.
+function Cache.encode(header, analyses, order, samples, yield)
     local parts = {header, '\n'}
     if samples then encode_samples(parts, samples) end
     local written = 0
@@ -117,6 +118,7 @@ function Cache.encode(header, analyses, order, samples)
         if analyses[key] and written < Cache.MAX_ENTRIES then
             encode_entry(parts, key, analyses[key])
             written = written + 1
+            if yield then yield() end
         end
     end
     return table.concat(parts)
@@ -223,8 +225,9 @@ local function decode_entry(text, at, bytes)
 end
 
 -- The analyses in a cache file's text: {key -> analysis}, their order and the shared samples (nil without the
--- block), or nil and why (another format, build or data, or a damaged file).
-function Cache.decode(text, header)
+-- block), or nil and why (another format, build or data, or a damaged file). yield (optional) is called after each
+-- entry (inside a job's coroutine; LuaJIT yields across the pcall).
+function Cache.decode(text, header, yield)
     if type(text) ~= 'string' or text:sub(1, #header + 1) ~= header .. '\n' then
         return nil, 'built for another version, game build or data'
     end
@@ -238,6 +241,7 @@ function Cache.decode(text, header)
             key, analysis, at = decode_entry(text, at, bytes)
             entries[key] = analysis
             order[#order + 1] = key
+            if yield then yield() end
         end
     end)
     if not ok then return nil, tostring(why) end

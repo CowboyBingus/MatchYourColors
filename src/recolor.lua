@@ -10,13 +10,17 @@
 --
 -- Texture lifetime: a plan's textures live until the plan changes (another kit, direction or Off) or the
 -- addon pauses or stops: then the vanilla textures go back on every live tracked material, and the textures
--- are destroyed RETIRE_FRAMES frames later (the render thread may still draw a frame that used them).
+-- go back to the pool RETIRE_FRAMES frames later (the render thread may still draw a frame that used them). The
+-- pool refills a free texture for the next plan instead of making a new one: making a texture waits for the
+-- render thread (about one frame, src/engine.lua), refilling one does not.
 local ffi = require('ffi')
 
 local Recolor = {}
 
 Recolor.OFF, Recolor.HELMET_FROM_ARMOR, Recolor.ARMOR_FROM_HELMET = 1, 2, 3
 Recolor.RETIRE_FRAMES = 4
+Recolor.POOL_SPARES = 2 -- free textures made beside one that must be made (that frame waits for the renderer anyway)
+Recolor.POOL_MAX_FREE = 32 -- free textures kept per size; one more given back is destroyed
 local SLOTS = {[Recolor.HELMET_FROM_ARMOR] = {0, 0}, [Recolor.ARMOR_FROM_HELMET] = {1, 9}}
 local LUT_WIDTH = 23
 local HIGH = 4294967296
@@ -171,7 +175,8 @@ local function pipeline(deps, yield)
         self.header = deps.Cache.header(deps.build, data_signature())
         local text = deps.Cache.read(deps.cache_path)
         if text then
-            local entries, order, samples = deps.Cache.decode(text, self.header) -- order: or why it is not used
+            -- order: or why it is not used; decoding pauses between entries (a full file is about 1.4 MB)
+            local entries, order, samples = deps.Cache.decode(text, self.header, yield)
             if entries then
                 self.cached, self.order, self.samples = entries, order, samples
                 self.cache_status = string.format('%d kit analyses loaded', #order)
@@ -191,14 +196,17 @@ local function pipeline(deps, yield)
         table.insert(self.order, 1, key)
     end
 
-    -- Writes the cache when a job made new analyses; true, or false and why.
-    function self.save()
+    -- Writes the cache when jobs made new analyses: true, or false and why. yield (optional): pauses between
+    -- entries while the text is built (src/addon.lua runs the save as its own sliced job); the use order is copied
+    -- first, as recolor jobs may run while the save is paused.
+    function self.save(yield)
         if not self.dirty or not self.header then return true end
-        local all = {}
+        local all, order = {}, {}
         for k, v in pairs(self.cached) do all[k] = v end
         for k, v in pairs(self.analyses) do all[k] = v end
+        for i, key in ipairs(self.order) do order[i] = key end
         self.dirty = false
-        return deps.Cache.write(deps.cache_path, deps.Cache.encode(self.header, all, self.order, self.samples))
+        return deps.Cache.write(deps.cache_path, deps.Cache.encode(self.header, all, order, self.samples, yield))
     end
 
     function self.open()
@@ -320,11 +328,77 @@ local function piece_index(target, body)
     return out
 end
 
--- The bindings controller. deps: {Engine, Avatar, memory, native, note}.
+-- The runtime textures both controllers use, kept and refilled instead of made and destroyed per plan.
+-- take(spec) -> texture: a free texture of the spec's size refilled with its data (update_buffer, no wait), else a
+-- new one plus POOL_SPARES free ones made in the same frame; nil and why when the engine gives none.
+-- give(texture): back among the free ones; callers give a texture RETIRE_FRAMES frames after its last binding was
+-- undone, so no frame in flight still draws with it. deps: {Engine, native, memory}.
+function Recolor.pool(deps)
+    local Engine, native, memory = deps.Engine, deps.native, deps.memory
+    local POINTER = ffi.typeof('const uint8_t *')
+    local small = ffi.new('uint8_t[16]')
+    local free = {} -- [width * 65536 + height] = {texture, ...}
+    local self = {made = 0, refilled = 0, destroyed = 0}
+
+    local function read(address, size, out) return memory.read_into(ffi.cast(POINTER, address), size, out) end
+    local function list_for(width, height)
+        local key = width * 65536 + height
+        local list = free[key]
+        if not list then
+            list = {}
+            free[key] = list
+        end
+        return list
+    end
+    local function make(spec)
+        local texture, why = Engine.create_texture(native, spec.width, spec.height, spec.data, read, small)
+        if texture then self.made = self.made + 1 end
+        return texture, why
+    end
+
+    function self.take(spec)
+        local list = list_for(spec.width, spec.height)
+        local texture = list[#list]
+        if texture then
+            list[#list] = nil
+            Engine.update_texture(native, texture, spec.data)
+            self.refilled = self.refilled + 1
+            return texture
+        end
+        local made, why = make(spec)
+        if not made then return nil, why end
+        for _ = 1, Recolor.POOL_SPARES do
+            local spare = make(spec)
+            if not spare then break end
+            list[#list + 1] = spare
+        end
+        return made
+    end
+
+    function self.give(texture)
+        local list = list_for(texture.width, texture.height)
+        if #list >= Recolor.POOL_MAX_FREE then
+            native.destroy(texture.handle)
+            self.destroyed = self.destroyed + 1
+            return
+        end
+        list[#list + 1] = texture
+    end
+
+    -- How many free textures the pool holds.
+    function self.free()
+        local count = 0
+        for _, list in pairs(free) do count = count + #list end
+        return count
+    end
+    return self
+end
+
+-- The bindings controller. deps: {Engine, Avatar, memory, native, pool (Recolor.pool)}.
 function Recolor.controller(deps)
-    local Engine, Avatar, memory, native = deps.Engine, deps.Avatar, deps.memory, deps.native
+    local Engine, Avatar, memory, native, pool = deps.Engine, deps.Avatar, deps.memory, deps.native, deps.pool
     local small, big = ffi.new('uint8_t[16]'), ffi.new('uint8_t[1024]')
-    local self = {bindings = {}, textures = {}, retired = {}, key = nil, applied = 0, restored = 0, destroyed = 0,
+    local self = {bindings = {}, textures = {}, retired = {}, key = nil, applied = 0, restored = 0, released = 0,
                   probes = 0}
 
     -- Reads at address numbers; one pointer object per address is made once and kept (bounded), so the
@@ -390,13 +464,13 @@ function Recolor.controller(deps)
         rebuild_probes()
     end
 
-    -- Destroys retired textures RETIRE_FRAMES frames after they were retired. Returns how many remain.
+    -- Gives retired textures back to the pool RETIRE_FRAMES frames after they were retired. Returns how many remain.
     function self.collect(frame)
         local keep = {}
         for _, texture in ipairs(self.retired) do
             if frame - texture.retired_at >= Recolor.RETIRE_FRAMES then
-                native.destroy(texture.handle)
-                self.destroyed = self.destroyed + 1
+                pool.give(texture)
+                self.released = self.released + 1
             else
                 keep[#keep + 1] = texture
             end
@@ -420,13 +494,12 @@ function Recolor.controller(deps)
         self.bindings = live
     end
 
-    -- The runtime texture for one planned LUT or pattern (specs: result.luts or result.patterns), created on
-    -- first use.
+    -- The runtime texture for one planned LUT or pattern (specs: result.luts or result.patterns), taken from the
+    -- pool on first use.
     local function texture_for(specs, name)
         local texture = self.textures[name]
         if texture then return texture end
-        local spec = specs[name]
-        local made, why = Engine.create_texture(native, spec.width, spec.height, spec.data, read, small)
+        local made, why = pool.take(specs[name])
         if not made then error('texture for ' .. name .. ': ' .. why, 0) end
         self.textures[name] = made
         return made
@@ -506,7 +579,7 @@ end
 if type(jit) == 'table' and type(jit.off) == 'function' then
     for _, fn in ipairs({Recolor.build_luts, Recolor.pattern_texel, Recolor.build_patterns, Recolor.look_of,
         Recolor.patterns_of, catalogue, pipeline,
-        Recolor.job, piece_index, Recolor.controller}) do
+        Recolor.job, piece_index, Recolor.pool, Recolor.controller}) do
         jit.off(fn, true)
     end
 end

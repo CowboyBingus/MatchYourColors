@@ -225,17 +225,23 @@ function Fake.engine(space, vanilla)
         assert(slot == Fake.LUT_SLOT or slot == Fake.PATTERN_SLOT, 'LUT or pattern slot')
         space.u64(entry(material, slot) + 8, object)
     end
+    -- Textures are made updatable (validity 1); update() refills one of the same size.
     function native.create(size, validity, view_type, view, data)
-        assert(validity == 0 and view_type == 3 and view[0] == 0x80820820 and size == view[2] * view[3] * 16)
+        assert(validity == 1 and view_type == 3 and view[0] == 0x80820820 and size == view[2] * view[3] * 16)
         local handle = next_handle
         next_handle = next_handle + 1
         local object = next_texture
         next_texture = next_texture + 0x100
         space.region(object, 16)
         space.u32(object, 0x3800 + handle)
-        created[handle] = {object = object, data = data, alive = true}
+        created[handle] = {object = object, data = data, alive = true, size = size, updates = 0}
         objects[handle] = object
         return handle
+    end
+    function native.update(handle, size, data)
+        local texture = created[handle]
+        assert(texture and texture.alive and size == texture.size and data ~= nil, 'refilling a live texture')
+        texture.data, texture.updates = data, texture.updates + 1
     end
     function native.resource(handle) return objects[handle] or 0 end
     function native.destroy(handle)

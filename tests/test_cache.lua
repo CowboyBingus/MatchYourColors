@@ -1,6 +1,6 @@
 -- Match Your Colors: the disk cache of kit analyses and shared samples (src/cache.lua): an exact round trip
 -- (rows and pattern areas as %.17g, LUTs and pattern textures as raw float32, samples as bytes), files of another
--- build or data, damaged files, the entry cap and the kit checksum.
+-- build or data, damaged files, the entry cap, the kit checksum and the pauses between entries.
 -- Usage: luajit tests/test_cache.lua <repository root>
 local root = assert(arg and arg[1], 'usage: test_cache.lua <repository root>')
 package.path = root .. '/src/?.lua;' .. package.path
@@ -110,6 +110,29 @@ check('the file keeps the most recently used entries, at most MAX_ENTRIES', func
     end
     local entries, kept = Cache.decode(Cache.encode(HEADER, all, order), HEADER)
     assert(entries and #kept == Cache.MAX_ENTRIES and kept[1] == order[1], 'cap and order')
+end)
+
+check('encoding and decoding pause after each entry, inside a coroutine (the yield crosses the pcall)', function()
+    local all, order = {}, {}
+    for i = 1, 5 do
+        local a = kit(i, i)
+        local key = Cache.key(a.kit, 0)
+        all[key] = a
+        order[#order + 1] = key
+    end
+    local yields = 0
+    local job = coroutine.wrap(function()
+        local text = Cache.encode(HEADER, all, order, nil, coroutine.yield)
+        local entries, kept = Cache.decode(text, HEADER, coroutine.yield)
+        return entries and #kept
+    end)
+    local result = job()
+    while result == nil do
+        yields = yields + 1
+        result = job()
+    end
+    assert(result == 5 and yields == 10, string.format('%s entries, %d pauses', tostring(result), yields))
+    assert(#Cache.encode(HEADER, all, order) == #Cache.encode(HEADER, all, order, nil, function() end), 'same text')
 end)
 
 check('a changed piece list changes the key; the body is part of it', function()

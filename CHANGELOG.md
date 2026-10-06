@@ -1,3 +1,13 @@
+# v1.2
+
+- The Armory no longer stutters each time it recolors an item you hover: the mod refills its kept color textures instead of making new ones, which made the game wait for its renderer (one 7-15 ms frame per recolor in real play).
+- New color textures are made only when none of the size is free, two spares at a time, so after the first recolors of a session none are made.
+- New analyses go to the disk cache a few seconds after the last recolor while no preview is shown, spread over frames, instead of rewriting the whole file (up to 1.4 MB) on the frame of a recolor.
+- Reading the disk cache at the first recolor of a session is spread over frames too.
+- The log gives each recolor's apply time and how many textures it made.
+- Played in joined missions and the Armory; measured in live play: 0.008 ms per frame in missions and 0.013 on the ship, and a frame over 2 ms in 3.5% of seconds on the ship and in the Armory, at most 5.6 ms (v1.1: 24-31%, mostly 7-15 ms).
+- Known: the first new item of a session still opens the game's data in one frame (63 ms once in live play).
+
 # v1.1
 
 - First public release, renamed from Helmet Color Match: the log, the disk cache and the Mod Options Menu settings take the new name, so a test build's settings start from the defaults once.

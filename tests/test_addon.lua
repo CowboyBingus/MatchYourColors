@@ -16,6 +16,7 @@ local function check(name, fn)
     passed = passed + 1
 end
 
+local SPARES = Recolor.POOL_SPARES -- free textures made beside one that must be made
 local HELMET_LUT, ARMOR_LUT, OTHER_LUT = '962a946e964ebc40', 'a007a73e4082430e', '1111111111111111'
 local SET_HELMET = 0x5e7e7e7e
 local HELMET_PATTERN = 'f18dfbb5346732c1'
@@ -141,7 +142,8 @@ check('the local helmet takes the plan; the remote player and the armor keep the
     for _, object in ipairs(w.bound(0x100)) do assert(object == texture.object, 'local helmet recolored') end
     for _, object in ipairs(w.bound(0x200)) do assert(object == VANILLA[HELMET_LUT], 'remote helmet untouched') end
     for _, object in ipairs(w.bound(0x101)) do assert(object == VANILLA[ARMOR_LUT], 'armor untouched') end
-    assert(#w.engine.created == 1, 'exactly one texture')
+    assert(#w.engine.created == 1 + SPARES and w.instance.pool.free() == SPARES,
+           'one texture bound, the spares made in the same frame are free')
 end)
 
 check('idle frames: one read (two with a preview slot); +2 every 30 frames; the chain every 120', function()
@@ -166,7 +168,7 @@ check('the game putting the original LUT back is noticed within 30 frames and re
     assert(w.engine.binding(material) == texture.object, 'recolored again with the same texture')
     local seen = false
     for _, line in ipairs(w.lines) do if line:find('original color texture back', 1, true) then seen = true end end
-    assert(seen and #w.engine.created == 1, 'logged, no new texture')
+    assert(seen and #w.engine.created == 1 + SPARES, 'logged, no new texture')
 end)
 
 check('re-equip: the new helmet unit is recolored with the same texture, the old one retired never', function()
@@ -178,7 +180,7 @@ check('re-equip: the new helmet unit is recolored with the same texture, the old
     w.space.u32(Fake.local_unit_at(0, 0), 0x104)
     w.frames(3)
     for _, object in ipairs(w.bound(0x104)) do assert(object == texture.object, 'new unit recolored') end
-    assert(#w.engine.created == 1 and texture.alive, 'same texture kept')
+    assert(#w.engine.created == 1 + SPARES and texture.alive, 'same texture kept')
 end)
 
 check('preview entries of the local player are recolored, the remote player\'s are not', function()
@@ -198,16 +200,22 @@ check('preview entries of the local player are recolored, the remote player\'s a
     assert(n.idle >= 28 and n.other == 0, 'idle with one local preview entry: units, count, entries')
 end)
 
-check('Off puts the vanilla LUT back and destroys the texture four frames later', function()
+check('Off puts the vanilla LUT back; the texture is free four frames later and the next plan refills it', function()
     local w = setup()
     w.frames(3)
     local texture = w.engine.created[1]
     w.instance.set_option('mode', Recolor.OFF)
     w.frames(3) -- the job spans two frames, restore on the second
     for _, object in ipairs(w.bound(0x100)) do assert(object == VANILLA[HELMET_LUT], 'helmet back to vanilla') end
-    assert(texture.alive, 'not destroyed at once')
+    assert(w.instance.pool.free() == SPARES, 'not free at once')
     w.frames(4)
-    assert(not texture.alive, 'destroyed after the retire delay')
+    assert(texture.alive and w.instance.pool.free() == SPARES + 1, 'free after the retire delay, not destroyed')
+    w.instance.set_option('mode', Recolor.HELMET_FROM_ARMOR)
+    local calls = {}
+    for _ = 1, 3 do for k, v in pairs(w.frame()) do calls[k] = (calls[k] or 0) + v end end
+    assert(not calls.create and calls.update == 1, 'one texture refilled, none made: ' .. budget.describe(calls))
+    local object = w.bound(0x100)[1]
+    assert(object ~= VANILLA[HELMET_LUT] and #w.engine.created == 1 + SPARES, 'recolored with a pooled texture')
 end)
 
 check('armor matches helmet: armor units recolored, skin pieces and the helmet untouched', function()
@@ -229,9 +237,12 @@ check('switching direction restores the old target before recoloring the new one
     w.instance.set_option('mode', Recolor.ARMOR_FROM_HELMET)
     w.frames(3)
     for _, object in ipairs(w.bound(0x100)) do assert(object == VANILLA[HELMET_LUT], 'helmet restored') end
-    for _, object in ipairs(w.bound(0x101)) do assert(object == w.engine.created[2].object, 'armor recolored') end
+    local armor = w.bound(0x101)[1]
+    assert(armor ~= VANILLA[ARMOR_LUT] and armor ~= first.object, 'armor recolored with a spare')
+    for _, object in ipairs(w.bound(0x102)) do assert(object == armor, 'the same texture on the other armor unit') end
+    assert(#w.engine.created == 1 + SPARES, 'no texture made: the armor plan refilled a spare')
     w.frames(4)
-    assert(not first.alive and w.engine.created[2].alive, 'only the retired texture destroyed')
+    assert(first.alive and w.instance.pool.free() == SPARES, 'the helmet texture free again, not destroyed')
 end)
 
 check('complete sets stay vanilla while the option is on', function()
@@ -240,7 +251,7 @@ check('complete sets stay vanilla while the option is on', function()
     assert(#w.engine.created == 0, 'no texture for a complete set')
     w.instance.set_option('keep_sets', false)
     w.frames(3)
-    assert(#w.engine.created == 1, 'recolored once the option is off')
+    assert(#w.engine.created == 1 + SPARES, 'recolored once the option is off')
 end)
 
 check('a pause restores at once; the next frames start over', function()
@@ -249,9 +260,8 @@ check('a pause restores at once; the next frames start over', function()
     w.instance.pause('test')
     for _, object in ipairs(w.bound(0x100)) do assert(object == VANILLA[HELMET_LUT], 'vanilla during the pause') end
     w.frames(10)
-    for _, object in ipairs(w.bound(0x100)) do
-        assert(object == w.engine.created[2].object, 'recolored again after the pause')
-    end
+    local object = w.bound(0x100)[1]
+    assert(object ~= VANILLA[HELMET_LUT] and #w.engine.created == 1 + SPARES, 'recolored again from the pool')
 end)
 
 check('kits that change while a job runs discard its result', function()
@@ -262,7 +272,7 @@ check('kits that change while a job runs discard its result', function()
     w.frame() -- job ends: discarded, a new job starts on the next frame
     assert(#w.engine.created == 0, 'stale result not applied')
     w.frames(4)
-    assert(#w.engine.created == 1, 'applied for the new kits')
+    assert(#w.engine.created == 1 + SPARES, 'applied for the new kits')
 end)
 
 -- UI preview (the Armory CHARACTER view): helmet 0x0b0b0b0b is hovered, so the preview shows another pair.
@@ -277,36 +287,108 @@ check("the local UI preview takes its own plan (a hovered helmet); the remote pl
     Fake.show_ui(w.space, 1, HOVERED, {[{0, 0}] = 0x300})
     Fake.show_ui(w.space, 3, {helmet = 0x0c0c0c0c, armor = 0x22222222, body = 0}, {[{0, 0}] = 0x301})
     w.frames(7) -- seen within 4 frames (the gate), then the job over two frames
-    local preview_texture = w.engine.created[2]
-    assert(preview_texture and #w.engine.created == 2, 'one texture for the preview pair')
-    for _, object in ipairs(w.bound(0x300)) do assert(object == preview_texture.object, 'local preview recolored') end
+    local preview = w.bound(0x300)[1]
+    assert(preview ~= VANILLA[HELMET_LUT] and preview ~= avatar_texture.object, 'local preview recolored')
+    for _, object in ipairs(w.bound(0x300)) do assert(object == preview, 'one texture for the preview pair') end
+    assert(#w.engine.created == 1 + SPARES, 'the preview refilled a spare: no texture made, no wait')
     for _, object in ipairs(w.bound(0x301)) do assert(object == VANILLA[HELMET_LUT], 'remote preview untouched') end
     for _, object in ipairs(w.bound(0x100)) do assert(object == avatar_texture.object, 'the avatar keeps its own') end
     local seen = false
     for _, line in ipairs(w.lines) do
-        if line:find('Preview recolored: 2 materials (helmet 0b0b0b0b', 1, true) then seen = true end
+        if line:find('Preview recolored: 2 materials (helmet 0b0b0b0b', 1, true) and line:find('0 new textures)', 1, true)
+        then
+            seen = true
+        end
     end
-    assert(seen, 'logged')
+    assert(seen, 'logged, with the apply time and no new texture')
 end)
 
-check("a hover change re-plans the preview; closing it retires only the preview's textures", function()
+check("a hover change re-plans the preview from the pool; closing it frees only the preview's textures", function()
     local w = setup({ui = true})
     w.frames(3)
     w.engine.unit(0x300, HELMET_LUT)
     Fake.show_ui(w.space, 1, HOVERED, {[{0, 0}] = 0x300})
     w.frames(7)
-    local first = assert(w.engine.created[2], 'preview texture')
+    local first = w.bound(0x300)[1]
     w.engine.units[0x300].alive = false -- the game replaces the piece units on a hover change
     w.engine.unit(0x302, HELMET_LUT)
     Fake.show_ui(w.space, 1, {helmet = 0x0d0d0d0d, armor = 0x0ade6719, body = 0}, {[{0, 0}] = 0x302})
-    w.frames(3)
-    local second = assert(w.engine.created[3], 'a texture for the new pair')
-    for _, object in ipairs(w.bound(0x302)) do assert(object == second.object, 'the new helmet recolored') end
+    local calls = {}
+    for _ = 1, 3 do for k, v in pairs(w.frame()) do calls[k] = (calls[k] or 0) + v end end
+    local second = w.bound(0x302)[1]
+    assert(second ~= VANILLA[HELMET_LUT] and second ~= first, 'the new helmet recolored with another pooled texture')
+    assert(not calls.create and calls.update == 1 and #w.engine.created == 1 + SPARES,
+           'refilled, nothing made (no wait for the renderer): ' .. budget.describe(calls))
     w.frames(5)
-    assert(not first.alive and second.alive, "the previous pair's texture destroyed after the retire delay")
+    assert(w.instance.pool.free() == 1, "the previous pair's texture free after the retire delay")
     Fake.show_ui(w.space, 1, nil)
     w.frames(6)
-    assert(not second.alive and w.engine.created[1].alive, 'preview textures retired; the avatar keeps its own')
+    assert(w.instance.pool.free() == 2, 'the preview texture free once the preview closed')
+    for _, object in ipairs(w.bound(0x100)) do assert(object == w.engine.created[1].object, 'the avatar keeps its own') end
+    for _, texture in ipairs(w.engine.created) do assert(texture.alive, 'nothing destroyed') end
+end)
+
+check('the pool refills a free texture of the same size, makes spares in the frame it must make one, and keeps '
+      .. 'at most POOL_MAX_FREE free per size', function()
+    local w = setup()
+    local pool = Recolor.pool({Engine = Engine, native = w.engine.native, memory = w.memory})
+    local function spec(width, height) return {width = width, height = height,
+                                               data = ffi.new('float[?]', width * height * 4)} end
+    local lut = spec(23, 8)
+    local first = assert(pool.take(lut))
+    assert(pool.made == 1 + SPARES and pool.free() == SPARES and first.data == lut.data, 'made with spares')
+    local again = spec(23, 8)
+    local second = assert(pool.take(again))
+    assert(pool.made == 1 + SPARES and pool.refilled == 1, 'a spare refilled')
+    assert(second.data == again.data and w.engine.created[second.handle].data == again.data,
+           'the refilled texture holds its new data (the render thread reads it later)')
+    local pattern = assert(pool.take(spec(3, 1)))
+    assert(pattern.width == 3 and pool.made == 2 * (1 + SPARES), 'another size is never refilled from 23 x 8')
+    local taken = {}
+    for i = 1, Recolor.POOL_MAX_FREE + 3 do taken[i] = assert(pool.take(spec(23, 8))) end
+    local free = pool.free()
+    for _, texture in ipairs(taken) do pool.give(texture) end
+    local per_size = math.min(Recolor.POOL_MAX_FREE, free - SPARES + #taken)
+    assert(pool.free() == per_size + SPARES and pool.destroyed == free - SPARES + #taken - per_size,
+           string.format('free %d, destroyed %d', pool.free(), pool.destroyed))
+end)
+
+check('new analyses are saved by a sliced job after the last recolor and while the preview is closed, never on '
+      .. 'the frame of a recolor', function()
+    local w = setup({ui = true})
+    local saves, frames_saving = 0, {}
+    local reader = {dirty = true, reads = 0, close = function() end}
+    function reader.save(yield) -- records every frame it runs in
+        frames_saving[w.instance.state.frame] = true
+        for _ = 1, 60 do
+            if yield then yield() end
+            frames_saving[w.instance.state.frame] = true
+        end
+        reader.dirty, saves = false, saves + 1
+        return true
+    end
+    w.instance.state.holder.pipeline = reader
+    w.frames(3) -- the avatar's job ends and is applied on frame 3
+    assert(saves == 0 and w.instance.state.save_at == 3 + Addon.SAVE_DELAY_FRAMES, 'due later, not now')
+    w.frames(Addon.SAVE_DELAY_FRAMES - 10)
+    assert(saves == 0 and not next(frames_saving), 'nothing before the delay')
+    w.engine.unit(0x300, HELMET_LUT)
+    Fake.show_ui(w.space, 1, HOVERED, {[{0, 0}] = 0x300})
+    w.frames(2 * Addon.SAVE_DELAY_FRAMES) -- past the due frame its recolor set, the preview still shown
+    assert(saves == 0 and not next(frames_saving), 'nothing while the preview is shown')
+    Fake.show_ui(w.space, 1, nil)
+    w.frames(Addon.SAVE_DELAY_FRAMES + 20)
+    assert(saves == 1, 'saved once the preview was closed')
+    local count = 0
+    for _ in pairs(frames_saving) do count = count + 1 end
+    assert(count > 1, 'the save spans frames: ' .. count)
+    local line
+    for _, l in ipairs(w.lines) do if l:find('Analysis cache saved (', 1, true) then line = l end end
+    assert(line and tonumber(line:match('over (%d+) frames')) == count, 'logged: ' .. tostring(line))
+    reader.dirty = true
+    w.instance.state.save_at = w.instance.state.frame + 1
+    w.instance.stopped('shutdown')
+    assert(saves == 2 and w.lines[#w.lines - 1] == 'Analysis cache saved at shutdown.', 'saved at shutdown when due')
 end)
 
 check('UI preview cost: +1 read on 1 frame in 4 while it is not shown, +2 reads per frame while it is', function()
@@ -332,7 +414,7 @@ check('a planned pattern takes its own texture on the pattern slot, is checked e
     with_patterns = true
     local w = setup({patterns = true})
     w.frames(3)
-    assert(#w.engine.created == 2, 'two textures (LUT and pattern), got ' .. #w.engine.created)
+    assert(#w.engine.created == 2 * (1 + SPARES), 'LUT and pattern textures and their spares, got ' .. #w.engine.created)
     local material = w.engine.units[0x100].materials[1].material
     local lut, pattern = w.engine.binding(material), w.engine.binding(material, Fake.PATTERN_SLOT)
     assert(lut ~= VANILLA[HELMET_LUT] and pattern ~= VANILLA[HELMET_PATTERN] and lut ~= pattern, 'both slots recolored')
@@ -342,14 +424,15 @@ check('a planned pattern takes its own texture on the pattern slot, is checked e
            n.check, n.other))
     w.space.u64(w.engine.entry(material, Fake.PATTERN_SLOT) + 8, VANILLA[HELMET_PATTERN]) -- the game's own reset
     w.frames(33)
-    assert(w.engine.binding(material, Fake.PATTERN_SLOT) == pattern and #w.engine.created == 2,
+    assert(w.engine.binding(material, Fake.PATTERN_SLOT) == pattern and #w.engine.created == 2 * (1 + SPARES),
            'the pattern recolored again with the same texture')
     w.instance.set_option('mode', Recolor.OFF)
     w.frames(3)
     assert(w.engine.binding(material) == VANILLA[HELMET_LUT]
            and w.engine.binding(material, Fake.PATTERN_SLOT) == VANILLA[HELMET_PATTERN], 'both slots back to vanilla')
     w.frames(4)
-    for _, texture in ipairs(w.engine.created) do assert(not texture.alive, 'textures destroyed') end
+    for _, texture in ipairs(w.engine.created) do assert(texture.alive, 'textures kept') end
+    assert(w.instance.pool.free() == 2 * (1 + SPARES), 'both textures free again')
     with_patterns = false
 end)
 

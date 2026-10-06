@@ -2,14 +2,21 @@
 --
 -- Script C API [game.dll + 0x3326308]: Unit (+24) alive +1824, num_meshes +424, mesh +440; Mesh (+232)
 -- num_materials +8, material +24, commit +32; Material (+40) set_resource +128. get_engine_api (exe 0xa4e50):
--- 26 = RenderBufferApi (create_buffer +0x60, destroy_buffer +0x70, lookup_resource +0x78), 5 =
--- ResourceManagerApi (can_get_by_id +0x30, get_by_id +0x40). Every function address is compared with its
+-- 26 = RenderBufferApi (create_buffer +0x60, update_buffer +0x68, destroy_buffer +0x70, lookup_resource +0x78),
+-- 5 = ResourceManagerApi (can_get_by_id +0x30, get_by_id +0x40). Every function address is compared with its
 -- expected executable offset once per session, before any call.
 --
 -- A material keeps its texture bindings at +24 (count) / +32 (array of {u32 slot, pointer}); the LUT slot is
 -- 0x7e662968, the pattern slot 0x81d4c49d (the piece's 3 x 1 pattern texture, research/ref/lut.frag). A runtime
--- LUT or pattern is an RGBA32F texture (23 x N or 3 x 1 texels) of one mip whose data buffer stays referenced
--- while the texture lives (create_buffer keeps the pointer). Nothing here runs on an idle frame.
+-- LUT or pattern is an RGBA32F texture (23 x N or 3 x 1 texels) of one mip. The engine keeps pointers into its
+-- data and the render thread reads them later, so the data stays referenced while the texture holds it.
+--
+-- Creating a texture is slow: for a texture view create_buffer (exe 0x1c7cc0) queues the creation, then inserts a
+-- "render fence" and waits on it (0x105e40, 0x106030), so the game's main thread stops until the render thread
+-- has worked through everything queued before it, about one frame (the Armory hitch of v1.1: one 7-15 ms frame
+-- per recolor). update_buffer (0x1c8090) only queues new data in the renderer's update context, which the frame
+-- kick (0x10a5c0) hands to the render thread before the frame that draws with it: no wait. Textures are made
+-- updatable (validity 1) and refilled (src/recolor.lua's pool). Nothing here runs on an idle frame.
 local ffi = require('ffi')
 
 local Engine = {}
@@ -27,6 +34,7 @@ local DECLARATIONS = [[
     typedef uint64_t (*myc1_get_engine_api)(uint32_t id);
     typedef uint32_t (*myc1_buffer_create)(uint32_t size, uint32_t validity, uint32_t view_type, const void *view,
                                             const void *data);
+    typedef void (*myc1_buffer_update)(uint32_t handle, uint32_t size, const void *data);
     typedef void (*myc1_buffer_destroy)(uint32_t handle);
     typedef uint64_t (*myc1_buffer_resource)(uint32_t handle);
     typedef uint8_t (*myc1_resource_can_get)(uint64_t type, uint64_t name);
@@ -41,18 +49,20 @@ Engine.PATTERN_SLOT = 0x81d4c49d
 Engine.TEXTURE_TYPE = 0xCD4238C6A0C69E32ULL
 Engine.RGBA32F = 0x80820820
 Engine.TEXTURE_VIEW = 3
+Engine.UPDATABLE = 1 -- create_buffer's validity: the texture takes update_buffer
 -- {table, slot offset, expected executable offset} for every function the mod calls.
 Engine.FUNCTIONS = {
     alive = {'unit', 1824, 0x1feeb0}, meshes = {'unit', 424, 0x200cd0}, mesh = {'unit', 440, 0x200d20},
     materials = {'mesh', 8, 0x344300}, material = {'mesh', 24, 0x344350}, commit = {'mesh', 32, 0x344360},
     set_resource = {'material', 128, 0x30f2b0}, -- a jump to 0x4f3230
-    create = {'buffers', 0x60, 0x1c7cc0}, destroy = {'buffers', 0x70, 0x1c81a0}, resource = {'buffers', 0x78, 0x1c8670},
+    create = {'buffers', 0x60, 0x1c7cc0}, update = {'buffers', 0x68, 0x1c8090}, destroy = {'buffers', 0x70, 0x1c81a0},
+    resource = {'buffers', 0x78, 0x1c8670},
     can_get = {'resources', 0x30, 0xa0d30}, get = {'resources', 0x40, 0xa0df0},
 }
 local TYPES = {alive = 'myc1_unit_alive', meshes = 'myc1_unit_meshes', mesh = 'myc1_unit_mesh',
                materials = 'myc1_mesh_materials', material = 'myc1_mesh_material', commit = 'myc1_mesh_commit',
                set_resource = 'myc1_material_set_resource', create = 'myc1_buffer_create',
-               destroy = 'myc1_buffer_destroy', resource = 'myc1_buffer_resource',
+               update = 'myc1_buffer_update', destroy = 'myc1_buffer_destroy', resource = 'myc1_buffer_resource',
                can_get = 'myc1_resource_can_get', get = 'myc1_resource_get'}
 local SCRIPT_TABLES = {unit = 24, mesh = 232, material = 40}
 local ENGINE_APIS = {buffers = 26, resources = 5}
@@ -150,12 +160,13 @@ function Engine.binding(read, material, slot, buffer, big)
     return nil
 end
 
--- A runtime LUT texture: {handle, object, data, view}; data: float array of width x height x 4 (kept).
--- Returns nil and why when the engine gives no render handle.
+-- A runtime LUT texture, updatable: {handle, object, data, view, width, height}; data: float array of width x
+-- height x 4 (kept). Waits for the render thread (see above). Returns nil and why when the engine gives no render
+-- handle.
 function Engine.create_texture(native, width, height, data, read, buffer)
     local view = ffi.new('uint32_t[14]')
     view[0], view[1], view[2], view[3], view[4], view[5], view[6] = Engine.RGBA32F, 0, width, height, 1, 1, 1
-    local handle = native.create(width * height * 16, 0, Engine.TEXTURE_VIEW, view, data)
+    local handle = native.create(width * height * 16, Engine.UPDATABLE, Engine.TEXTURE_VIEW, view, data)
     local object = tonumber(native.resource(handle))
     if not object or object == 0 or not read(object, 4, buffer) then
         native.destroy(handle)
@@ -166,7 +177,14 @@ function Engine.create_texture(native, width, height, data, read, buffer)
         native.destroy(handle)
         return nil, 'no render handle'
     end
-    return {handle = handle, object = object, data = data, view = view}
+    return {handle = handle, object = object, data = data, view = view, width = width, height = height}
+end
+
+-- New data for a runtime texture of the same size (queued for the render thread, no wait); the texture keeps
+-- `data` referenced while it holds it.
+function Engine.update_texture(native, texture, data)
+    native.update(texture.handle, texture.width * texture.height * 16, data)
+    texture.data = data
 end
 
 -- Binds a texture object to a material's texture slot (the mesh is committed by the caller).
@@ -178,7 +196,7 @@ end
 -- add traces to the LuaJIT code cache the game and every mod share. Only the hot loops stay compiled.
 if type(jit) == 'table' and type(jit.off) == 'function' then
     for _, fn in ipairs({Engine.open, Engine.name64, Engine.texture_object, Engine.unit_materials, Engine.binding,
-        Engine.create_texture, Engine.bind}) do
+        Engine.create_texture, Engine.update_texture, Engine.bind}) do
         jit.off(fn, true)
     end
 end

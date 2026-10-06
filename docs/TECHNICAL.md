@@ -202,13 +202,24 @@ captured image depends on timing that is not checked yet.
 
 Script C API `[game.dll + 0x3326308]`: Unit (+24) `alive` +1824, `num_meshes` +424, `mesh` +440; Mesh (+232)
 `num_materials` +8, `material` +24, `commit` +32; Material (+40) `set_resource` +128. `get_engine_api`
-(exe `0xa4e50`, prefix checked): 26 = RenderBufferApi (`create_buffer` +0x60, `destroy_buffer` +0x70,
-`lookup_resource` +0x78). Every function address is compared with its expected executable offset once per
+(exe `0xa4e50`, prefix checked): 26 = RenderBufferApi (`create_buffer` +0x60, `update_buffer` +0x68,
+`destroy_buffer` +0x70, `lookup_resource` +0x78). Every function address is compared with its expected executable offset once per
 session before any call. A runtime LUT is RGBA32F, 23 x N, one mip; its data stays referenced while it lives.
+
+Making a texture stops the game's main thread (the Armory hitch of v1.1, one 7-15 ms frame per recolor in real
+play): for a texture view `create_buffer` (exe `0x1c7cc0`) queues the creation, then inserts a "render fence"
+(`0x105e40`) and waits on it (`0x106030`), until the render thread has worked through everything queued before it.
+`update_buffer` (`0x1c8090`) only queues new data in the renderer's update context, which the frame kick
+(`0x10a5c0`) hands to the render thread before the frame's draw command: no wait, and the new data is in place for
+the first frame that draws with it. So the textures (validity 1, updatable) are kept in a pool shared by the avatar
+and the UI preview (`Recolor.pool`): a plan refills a free texture of the size it needs; only when none is free is
+one made, with two spares in the same frame (that frame waits anyway). The engine keeps pointers into a texture's
+data, so the texture keeps its data referenced.
 
 Texture lifetime: a plan's textures live until the plan changes (other kit, direction, Off) or the addon pauses or
 stops. Then the vanilla texture goes back on every live tracked material (only where the material still holds
-the mod's texture), and the textures are destroyed four frames later.
+the mod's texture), and the textures go back to the pool four frames later (a frame in flight may still draw with
+them); the pool keeps up to 32 free textures per size and destroys more.
 
 ## Analysis cache
 
@@ -218,7 +229,10 @@ textures as raw float32), at most 64
 entries, most recently used first. The first line names the format version (5), the game build and the slim
 index (chunk count and size); an entry's key holds the kit id, body type, archive and a checksum of the kit's
 piece list. Anything unexpected discards the whole file (an older file is rebuilt once). The file is read on the
-first job of a session and written after a job that read the game files, through a temporary file and a rename.
+first job of a session, pausing between entries. New analyses are written by a save job of its own: due 300 frames
+after the last recolor job, it waits while the UI preview is shown, runs on frames without a recolor job with the
+same 1.5 ms budget, pausing between entries, and writes through a temporary file and a rename; a save still due at
+shutdown is written then. (v1.1 encoded and wrote the whole file, up to 1.4 MB, on the frame of a recolor.)
 With it, a session's first recolor needs no game-file read, the color transfer included (v1.0 live: 2 frames,
 2.2 ms of work).
 
@@ -239,7 +253,9 @@ while the unit lives, the recolor is applied again and a line is logged. No such
 | No local Helldiver | 1 resolve (up to about 20 reads) every 15 frames, nothing between | unmeasured in game |
 | Every 120 frames | the local-player chain again (about 20 reads), `alive` per tracked binding | unmeasured in game |
 | Change | the chain, then a job: 1.5 ms of work per frame, ended at the first pause point after it (2 `QueryPerformanceCounter` per frame plus one per pause point) | job length and longest frame logged per job |
-| Apply | per target unit: engine calls to list materials, two reads per material; per changed LUT: `can_get_by_id`, `get_by_id`, `create_buffer`, `lookup_resource`; `set_resource` per material, `commit` per mesh | one frame of 7-15 ms per Armory preview recolor in real play (v1.1, inferred from counts) |
+| Apply | per target unit: engine calls to list materials, two reads per material; per changed LUT or pattern: `can_get_by_id`, `get_by_id`, `update_buffer` on a pooled texture; `set_resource` per material, `commit` per mesh | logged per apply; unmeasured in game (v1.1 made each texture: one frame of 7-15 ms per Armory preview recolor in real play) |
+| Pool growth | only when no free texture of the size: `create_buffer` + `lookup_resource` for it and two spares (waits for the render thread once) | about one frame, at the first recolors of a session |
+| Cache save | when due: the save job's 1.5 ms of work per frame, then one file write | logged per save; unmeasured in game |
 
 Idle frames allocate nothing (`tests/test_idle_alloc.lua`, interpreter only). No `VirtualQuery`, no memory
 writes, no page-protection changes. Call counts per frame kind are pinned in `tests/test_addon.lua`.
@@ -253,7 +269,17 @@ the two armors with 512 x 512 ID masks (CM-14 Physician, B-24 Enforcer) took 181
 22.3 ms) and 64 ms over 31 frames (8.7 ms). The same analyses in the game's `lua51.dll` outside the game take 54
 and 40 ms with no stretch between pause points over 1.75 ms, so in the game the work runs about 3x slower and
 frames also carry garbage-collector work the job's allocations trigger. The game's JIT cache did not flush
-(limits 64 MB / 8000 traces). v1.1 changes the reading:
+(limits 64 MB / 8000 traces).
+
+Real play with v1.2 (2026-10-05: a joined mission, and the ship with long Armory visits): 52 recolors did work; the
+longest frames of their jobs were 9.2, 5.6 and 4.8 ms, most under about 2 ms, apart from the first analysis of a
+session, whose step "opening the game data" took one 63.5 ms frame. An apply took 0.05-0.13 ms when it refilled
+pooled textures, and 0.55-5.3 ms when it made three new ones. The mod's hook cost 0.008 ms per frame in the
+mission and 0.013 ms on the ship; a frame over 2 ms fell in 3.5% of active seconds on the ship and in the Armory,
+at most 5.6 ms (the v1.1 build before the measured appearance: 24-31% of seconds, mostly 7-15 ms). No JIT flush
+during play; the mod's compiled code was 45.6 KB in 143 traces.
+
+v1.1 changes the reading:
 
 - ID-mask coverage reads blocks of rows (at most 128 KB) instead of whole layers (2 MB for a 512 x 512 two-layer
   mask); the reader keeps 3 decoded chunks, so alternating layer reads decode each chunk once (9 decodes per such

@@ -1,4 +1,4 @@
-# Match Your Colors v1.1
+# Match Your Colors v1.2
 
 Your helmet takes your armor's colors, or your armor takes your helmet's. Pick the direction in the MODS tab of
 the escape menu (Mod Options Menu): **Color Matching**: Off, Helmet Matches Armor (default) or Armor Matches
@@ -11,9 +11,8 @@ paint looks there), so a match follows what you see: a part you never see does n
 part gets the color that makes it look right. Armor and helmets released after that measurement still work, with
 the earlier model of what shows.
 
-**Status:** v1.0 was played in the game. v1.1 is tested offline on all 42,660 helmet and armor pairs and was
-checked in the game on the ship and in the Armory's character view (the sixteen pairs reported from play, an item
-hovered there); not yet in a mission. See [docs/TECHNICAL.md](docs/TECHNICAL.md).
+**Status:** played in the game on the ship, in the Armory's character view and in joined missions (v1.0 and v1.2),
+and tested offline on all 42,660 helmet and armor pairs. See [docs/TECHNICAL.md](docs/TECHNICAL.md).
 
 ## What changes
 
@@ -53,25 +52,33 @@ preview slot for you), plus two reads every 30 frames per recolored texture to c
 one 8-byte read every 4th frame to see whether a UI preview of your Helldiver is shown (two reads every frame while
 it is), and allocates nothing.
 When your equipment changes it works out the colors in the background, aiming at 1.5 ms of work per frame, and
-applies them in one frame. It changes no game code, writes no game memory and never changes your equipment.
+applies them in one frame. It keeps its color textures and refills them for the next colors: making a texture
+makes the game wait for its renderer (about one frame), so new ones are made only when none of the size is free,
+at the first recolors of a session. It changes no game code, writes no game memory and never changes your
+equipment.
 
 The first time it sees a helmet or armor it reads that item's colors from the game's files. In real play with
 v1.0 that took 7 to 45 ms of work over 4 to 25 frames per item, and 64 to 181 ms over 31 to 37 frames (one frame
 22 ms) for the two armors with large ID masks. v1.1 pauses inside every compressed chunk and no longer allocates a buffer the
-size of the mask; it is not yet measured in the game. The analysis is kept in `MatchYourColors.cache` beside the
+size of the mask. In real play with v1.2 a new item's frames stayed at a few ms at most (9 ms once), except the
+first analysis of a session, whose opening of the game's data took one 63 ms frame. The analysis is kept in `MatchYourColors.cache` beside the
 log, so an item seen before is recolored within a frame or two (2 ms of work). Fitting the colors of a new pair
 takes up to about 5 ms of work in the game's Lua engine outside the game.
 
 Measured in real play: v1.0 took 0.012 ms per frame in missions and 0.008 ms on the ship, with about 48 KB of
 compiled Lua code. A v1.1 build before the measured appearance took 0.025 ms per frame on the ship, and applying a
-recolor took one frame of 7 to 15 ms, once for each item you hover in the Armory. The measurement table is read once
-at startup (about 1.5 ms outside the game, unmeasured in game).
+recolor took one frame of 7 to 15 ms, once for each item you hover in the Armory. v1.2 refills kept textures
+instead: 0.008 ms per frame in missions and 0.013 ms on the ship, and a frame over 2 ms in 3.5% of seconds on the
+ship and in the Armory, at most 5.6 ms (that v1.1 build: 24-31%); applying a recolor takes 0.05-0.13 ms, or up to
+5 ms when it has to make new textures. The measurement table is read once at startup (about 1.5 ms outside the
+game, unmeasured in game). New analyses are written to the cache file a few seconds after the last recolor, while
+no preview is shown, spread over frames.
 
 ## Build and test
 
 `python -B scripts/build.py` runs every test in a LuaJIT and in the game's own `lua51.dll` (including the parity
 test: the Lua matcher and color transfer against the research pipeline on all 293 helmets and armors, all 42,660
-plans and the fitted colors of 287 of them, read from the installed game's files), then builds `releases/Match-Your-Colors-v1.1.zip`. `--test` also builds the live
+plans and the fitted colors of 287 of them, read from the installed game's files), then builds `releases/Match-Your-Colors-v1.2.zip`. `--test` also builds the live
 test build (never publish it).
 
 ## License

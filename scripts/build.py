@@ -40,7 +40,7 @@ sys.path.insert(0, str(loader_checkout() / 'scripts'))
 from archive import ARCHIVE, make_archive, resource_hash  # noqa: E402
 from build_addon import entry_source  # noqa: E402
 
-VERSION = '1.1'
+VERSION = '1.2'
 LUA_NAME = 'mods/cowboybingus/match_your_colors'
 GUID = 'b0694ff1-c08f-43e9-8611-e0ec75ea3ab5'
 TITLE = 'Match Your Colors v' + VERSION
