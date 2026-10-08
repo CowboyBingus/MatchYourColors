@@ -1,3 +1,66 @@
+# v1.3
+
+- An armor that shows almost nothing but its dark suit, such as the SC-34 Infiltrator, now gives helmets its dark color instead of turning their base white from a small light-grey trim; the same for 11 other suits such as the RE-1861 Parade Commander, CE-07 Demolition Specialist and DP-00 Tactical, so an RS-100 Sanctioner's hood no longer turns white or red on them.
+- New option Recolor Hoods (on by default): turned off, the hood of a hooded helmet (RS-100 Sanctioner, AC-2 Obedient, DS-10 Big Game Hunter, IE-12 Righteous and the SC-30 Trailblazer Scout helmets) keeps its own color like the visor, while its mask and trims still match.
+- New option Match Materials (off by default): turned on, a bare-metal part that takes a painted color becomes that paint, so a chrome, steel or gold helmet turns white or green with a white or green armor instead of staying bronze or gold.
+- Match Materials changes metal parts of at least 5% of the item and metal accents; small metal details such as bolts and rims, cloth, and painted parts keep their material, and nothing is turned into metal.
+- New option Paint Scheme (Off by default): paints your helmet and armor in one of the game's 11 weapon paint schemes (Helldiver, Forest, Forest Camo, Arctic, Arctic Camo, Desert, Desert Camo, Urban, Urban Camo, Night, Venus); the camo schemes bring their camo pattern.
+- Squadmates who use the mod see each other's helmet and armor in their chosen colors (Sync With Mod Users, always on, no option); only the settings travel, as a value of the squad's online lobby.
+- The log notes a squadmate who shares settings but whose Helldiver the mod cannot find.
+- Fixed: sharing your settings could crash the game a few seconds after reaching the ship, when a memory buffer the online lobby reads had been freed; settings are now shared only while your Helldiver exists and once the lobby has been stable for ten seconds.
+- Helmets and armors changed by other mods (LUT edits such as recolored helmets and glowing visors) are now recolored from their modded colors; the mod read the game's original files and put the original colors back on modded items.
+- Glowing parts keep their colors like visors and lights: the visors of visor-glow mods, and the game's own small light strips (such as on the PH-56 Jaguar and GS-66 Lawmaker), which also no longer pass their color to the other item.
+- New option Recolor Cape (off by default): your cape takes the same colors as your recolored helmet or armor, or the paint scheme's, so a red lining such as the Cover of Darkness's no longer stands out.
+- With Recolor Cape on, a complete set that Leave Complete Sets keeps as it is still gives its colors to your cape.
+- Sync With Mod Users shares the Recolor Cape setting, so squadmates' capes follow their own settings.
+- Recolor Cape also recolors a cape's own tint, the color its cape texture blends into the cloth, so United in Equality's purple band and the tinted parts of 40 other capes take the matched colors instead of keeping theirs.
+- Recolor Cape keeps emblems, marks and sashes readable: one that would blend into the cloth around it takes the matched color that stands out most against it, or keeps its own, so United in Equality's emblem turns dark on its now light band with the CW-36 Winter Warrior.
+- Recolor Cape keeps a cape's marks readable when your colors are equally dark: a mark that no color of yours sets apart by lightness takes one that stands out by its color, else a smaller color of yours, before keeping its own. On the UF-50 Bloodhound the Pillars of Freedom's red bars turn black on the red cloth, the Judgment Day's bands and Fre Liberam's eagle turn red, and Liberty's Herald's chevron turns silver.
+- Recolor Cape reads which part of a cape shows which color in the order the game draws it (red before green before blue), which shifts a few capes slightly.
+- Fixed: with Recolor Cape on, every recolor failed after a restart once the cape had been analysed in an earlier session.
+- Fixed: Armor Matches Helmet no longer turns most of the CM-14 Physician yellow with the RS-67 Null Cipher: a colored part counts as a trim only while all parts of its color together stay under 15%, so the green follows the helmet's main colors.
+- A part bigger than a tenth of the item takes the other item's accent color only when that item shows its accent on at least 1% of itself, so the RS-67 Null Cipher's speck of yellow no longer paints a whole armor part or a cape's band.
+- A smaller colored part takes such a speck of accent only when it is bigger than the speck in the part's own hue family, so the CM-14 Physician's red canisters take the RS-67 Null Cipher's dark instead of its 0.3% yellow.
+- A light neutral painted pattern takes the other item's neutral color nearest in lightness when that item has two or more, so the CM-14 Physician's cream panels turn the RS-67 Null Cipher's grey instead of staying cream.
+- Recolor Cape keeps the emblems printed from a cape's emblem sheet readable: one that would blend into the cloth takes the color of yours that stands out most, in a copy of the sheet with only that emblem recolored, so the Drape of Glory's dark grey emblem turns light grey on the B-01 Tactical's dark cloth.
+- Recolor Cape fits a cape's cloth to your color as it shows in the game, its sheen included: a cape cloth takes the measured look of armor cloth with the same material settings, so the Drape of Glory's suede no longer turns brown where your armor is near-black.
+- The log notes, once per cape plan, how much of the cape its tint covers, what the emblem rules changed (design zones and emblem-sheet marks) and the largest color fit error.
+- The disk cache starts over once (format 9).
+- The disk cache starts over once when the installed mods that replace textures, materials or units change.
+- A part's new color never ends farther from the asked color than the part's own color was: the color fit now starts from the part's own color (in the tests 126 of 1,865 fitted parts had ended farther, the worst by 11 CIEDE2000).
+- A metal part no longer turns a deeper color than the other item shows: its paint stays as muted as the asked color, since a metal's reflections show its paint at full strength (the CPR-80 Bulwark turned deep blue with the DP-8 Mountain-Scaled's dull navy).
+- Armor Matches Helmet no longer turns a whole armor a helmet's bright minority color: when a helmet's largest part is a vivid color on less than half of it, such as the PH-9 Predator's red beret, the armor takes the helmet's muted color and the vivid one goes to its accents (also two B-01 Tactical helmet variants and the AF-02 Haz-Master).
+- A near-neutral color such as silver, grey or black passes on its lightness without its faint tint, so the GS-66 Lawmaker's silver no longer turns the B-24 Enforcer's brown leather navy-purple or its grey plates steel-blue.
+- A bare-metal part that would take a dark color takes the other item's bare metal instead when it has some, so the CPR-80 Bulwark's steel echoes the DP-8 Mountain-Scaled's silver chainmail instead of turning near-black.
+- A gold or other colored metal trim counts as an accent by how it looks, so the RE-2310 Honorary Guard's gold band takes the CE-27 Ground Breaker's yellow trim instead of turning black (also the O-44 Bonded Pilot).
+- When the other item has no vivid accent but a second color, accents take the color the matching gives them instead of keeping their own: the AF-02 Haz-Master's yellow suit turns the IX-VOIDWALKER's cream and the DP-40 Hero of the Federation's gold trims its navy.
+- Small accents and painted patterns take that second color, so the DP-00 Tactical's yellow trim turns the CW-36 Winter Warrior's dark instead of staying yellow, and the B-01 Tactical helmet's blue band the B-22 Model Citizen's dark.
+- An item of one color, such as the all-dark AC-2 Obedient, still leaves accents their own color, since its color would erase them.
+- A colored trim on a black or dark grey item counts as an accent up to 15% of what shows (10% before), so the DP-53 Savior of the Free's gold braid takes the B-01 Tactical helmet's yellow stripe instead of turning black.
+- An armor that shows almost nothing but its suit, such as the O-3 Free Spirit, takes the helmet's colors on its suit instead of barely changing (7 armors, among them the SC-34 Infiltrator and one of the B-01 Tactical armors).
+- A camo color of another hue than its part's paint takes the new hue instead of turning with the paint, so the TG-8 Sharpshooter's camo turns maroon with the UF-50 Bloodhound instead of a purple neither item has (also the CE-64 Grenadier).
+- Painted stripes and other patterns asked for a color far from their own keep the asked hue: the B-01 Tactical's yellow stripes turn the IX-VOIDWALKER's navy where they showed grey-green, and stripes asked for grey or black take no tint.
+- Cloth reaches the asked color with its sheen counted, so the TG-8 Sharpshooter's and O-3 Free Spirit's cloth turn the UF-50 Bloodhound's red instead of a lighter salmon pink; glossy leather keeps its highlights out, as before.
+- The seven pairs from manual testing, and the DP-00 Tactical with the UF-50 Bloodhound that was already right, are pinned in the tests and were checked on screen in the Armory on both body types from four sides; an independent review of those renders cleared them.
+- A part whose shine, metal or other finish another mod changed is no longer matched by how the original part looked in the Armory: its look is worked out from its new material, while a part whose colors alone a mod changed keeps the measured look.
+- A helmet or armor whose units or ID masks another mod replaced uses the earlier model of what shows instead of the Armory measurement, which no longer fits its parts.
+- The disk cache checks what each saved analysis read from other mods' files and makes it again when one changed, also when a large texture such as an ID mask was replaced by one of the same size (before, only the first 64 KB of each was compared).
+- Transmog mods that rebuild an item at runtime under another item's id: each recolor reads the item's record again, so a rebuilt item gets a new recolor instead of one made for its old parts, also after a respawn and in the Armory.
+- An item a transmog mod rebuilt with another item's parts takes that item's Armory measurement when exactly one measured item has those parts.
+- The log names the options each recolor used (hoods kept, materials matched, cape).
+- Tested offline on all 42,660 pairs with each option, with the Infiltrator's three pairs, four RS-100 Sanctioner pairs and three metal helmets pinned in the tests; Paint Scheme, Sync With Mod Users (through the real lobby, with the test build's own value) and two LUT mods checked in the game in a test session; Sync With Mod Users played between a host and a client, each seeing the other's colors.
+- Recolor Cape tested offline on all 118 capes (rows, tints, design zones, 85 emblem-sheet marks and 46 recolored sheets equal the reference) and checked on screen in the Armory on 23 outfits from the front and behind; an independent review of the renders cleared them; not yet played.
+- A game-data read the disk is slow to answer no longer holds up the game's frame: the recolor work waits a frame instead (real play saw single reads of 62 and 142 ms).
+- Working out new colors pauses more often, inside each color fit too, so it keeps closer to its 1.5 ms per frame (outside the game the longest stretch without a pause fell from 0.78 to 0.45 ms).
+- When a recolor's work used most of its frame, the recolor is applied on the next frame, so the two no longer add up in one frame.
+- The disk cache is read and written in pieces over several frames instead of in one (saves took up to 5 ms in one frame in real play).
+- Finding the installed mods' patch files takes 0.2 ms instead of 1.5 ms.
+- After a respawn the recolor is bound to the new Helldiver at once, without a new recolor job.
+- Fewer memory reads per frame: the Armory preview takes one read instead of two while it is shown, and the slot the game keeps for your body copies is read every other frame, in one read.
+- The 2-second check no longer asks the engine about every recolored material (only after a change), and the 30-frame recolor check reads one texture per check whatever their number.
+- v1.3's per-frame costs are measured offline only (call counts per frame pinned in the tests); the last real-play measurement is v1.2's.
+- Checked on screen in the Armory on 31 pairs on both body types, from the front, both sides and the rear: the recolored part ends a median 4 to 6 CIEDE2000 from the other item's color in every view, and an independent review of the renders confirmed the fixes above; mission lighting is not yet checked.
+
 # v1.2
 
 - The Armory no longer stutters each time it recolors an item you hover: the mod refills its kept color textures instead of making new ones, which made the game wait for its renderer (one 7-15 ms frame per recolor in real play).

@@ -10,15 +10,27 @@ number:
     tests/fixtures/kits.lua       helmet and armor kits (pieces as the game's catalogue lists them)
     tests/fixtures/shared.lua     detail and camo tiler samples (bytes)
     tests/fixtures/rows.lua       every kit's rows for the stocky body as the runtime analyses them (texture area,
-                                  under, model Lab, flags incl. bare metal, mean albedo)
+                                  under, model Lab, flags incl. bare metal, mean albedo, emissive intensity)
     tests/fixtures/plans.lua      an Adler-32 of every v12 plan (which source color each target row takes, `~` for
                                   an accent), both directions, all pairs
     tests/fixtures/patterns.lua   every kit's patterns (pattern texture, area) in first-seen order
     tests/fixtures/pattern_plans.lua  an Adler-32 of every non-empty pattern plan (target pattern texture = source
                                   accent key), both directions
+    tests/fixtures/pattern_texels.lua  the new texel of every planned pattern of a sample of pattern plans (every
+                                  PATTERN_EVERY-th): desired Lab, the pattern's measured gain or false, texel sRGB
     tests/fixtures/transfers.lua  the fitted colors of every planned row of a sample of plans (every TRANSFER_EVERY-th
                                   plan, plus the test job's pair): desired Lab, 8 colors x RGB, error, whether the
                                   fit went through the row's measured response
+    tests/fixtures/plans_hoods.lua  an Adler-32 of every helmet <- armor plan of a hooded helmet with Recolor Hoods
+                                  off (the hood rows kept), as plans.lua
+    tests/fixtures/materials.lua  per target kit and direction, an Adler-32 of the rows Match Materials paints (target
+                                  row = source row whose finish it takes) over every source in catalogue order
+    tests/fixtures/material_transfers.lua  the painted rows of a sample of Match Materials plans (every
+                                  MATERIAL_EVERY-th plan that paints, plus the test job's pair): the finish source,
+                                  desired Lab, fitted colors, error, whether the fit went through a measured response
+    tests/fixtures/capes.lua      every cape kit (Recolor Cape, research/capes.py): its catalogue record, its rows as
+                                  the cape model gives them (area, model Lab) and an Adler-32 of its plan against each
+                                  of CAPE_SOURCES (both directions' source kits)
 
 It also prints how many plans differ from the float32 research pipeline (expected: a handful at most, all
 equally valid). Usage: python -B scripts/make_fixtures.py [--limit N]
@@ -27,6 +39,7 @@ from __future__ import annotations
 
 import copy
 import json
+import math
 import sys
 import time
 import zlib
@@ -44,6 +57,7 @@ import match  # noqa: E402
 import match11  # noqa: E402
 import match12  # noqa: E402
 import shared_tex  # noqa: E402
+import capes  # noqa: E402
 import slim  # noqa: E402
 
 FIXTURES = HERE / 'tests' / 'fixtures'
@@ -148,6 +162,17 @@ def row_info64(lut_hash, r):
     return {'lab': lab, 'metal': metallic > 0.5, 'camo': bool(row[21][3] >= 0), 'mode': float(row[0][3])}
 
 
+_ROW_INFO64 = {}
+
+
+def row_info_cached(lut_hash, r):
+    """row_info64, kept per row; a cape's tint rows (match.VIRTUAL_LUTS) are made again each time: three cape LUTs
+    serve capes of different material LUTs."""
+    if lut_hash in match.VIRTUAL_LUTS:
+        return row_info64(lut_hash, r)
+    return _ROW_INFO64.setdefault((lut_hash, r), row_info64(lut_hash, r))
+
+
 # Coverage (float64, unrounded) ---------------------------------------------------------------------------------
 
 def coverage64(s, archives, mask):
@@ -182,6 +207,8 @@ def coverage64(s, archives, mask):
 
 
 TRANSFER_EVERY = 150
+MATERIAL_EVERY = 100
+PATTERN_EVERY = 7
 TEST_PAIR = {'a5574ac2', '0ade6719'}  # tests/test_job.lua: CPR-80 Bulwark helmet, DS-191 Scorpion armor
 
 
@@ -195,6 +222,164 @@ def transfer_cases(mapping, target):
         out.append({'key': f'{tk[0]}:{tk[1]}', 'L': float(desired[0]), 'a': float(desired[1]), 'b': float(desired[2]),
                     'colors': colors, 'err': float(err), 'cal': bool(cal[tk])})
     return out
+
+
+def plan_text(mapping):
+    """A plan as plans.lua hashes it: 'target row=[~]source row;...' in key order (~: an accent)."""
+    parts = []
+    for tk, (kind, g, _) in sorted(mapping.items(), key=lambda kv: f'{kv[0][0]}:{kv[0][1]}'):
+        rep = g['rep']['key']
+        parts.append(f'{tk[0]}:{tk[1]}=' + ('~' if kind == 'accent' else '') + f'{rep[0]}:{rep[1]}')
+    return ';'.join(parts)
+
+
+def finish_text(finishes):
+    """The rows a Match Materials plan paints: 'target row=finish source row;...' in key order."""
+    return ';'.join(f'{tk[0]}:{tk[1]}={fk[0]}:{fk[1]}'
+                    for tk, fk in sorted(finishes.items(), key=lambda kv: f'{kv[0][0]}:{kv[0][1]}'))
+
+
+def material_cases(mapping, target):
+    """[{key, finish, L, a, b, colors (8 x RGB), err, cal}] for every row a Match Materials plan paints, in key
+    order: the row with its source row's finish (match12.with_finish), fitted through that row's perceived color."""
+    out = []
+    for tk, fk in sorted(match12.finishes(target, mapping).items(), key=lambda kv: f'{kv[0][0]}:{kv[0][1]}'):
+        _, src, desired = mapping[tk]
+        rep = src['rep']
+        row = match12.with_finish(match.lut_data(tk[0])[tk[1]], match.lut_data(fk[0])[fk[1]])
+        new, _, err = match12.recolor_row(row, desired, fk, rep['cal'])
+        colors = [float(new[c][ch]) for c in match11.COLOUR_COLUMNS for ch in range(3)]
+        out.append({'key': f'{tk[0]}:{tk[1]}', 'finish': f'{fk[0]}:{fk[1]}', 'L': float(desired[0]),
+                    'a': float(desired[1]), 'b': float(desired[2]), 'colors': colors, 'err': float(err),
+                    'cal': bool(rep['cal'])})
+    return out
+
+
+# The sources the capes are planned against: armors (helmet matches armor) and helmets (armor matches helmet), the
+# test job's pair among them.
+# the UF-50 Bloodhound: red and black of one lightness (user report 2026-10-07: capes left in their own colors, the
+# Pillars of Freedom's red bars lost on its red)
+CAPE_SOURCES = ['0ade6719', '4f7fb2bd', '5bb4bbb0', 'a5574ac2', '47bcec20', '24fdb2c0', 'b3550d20']
+
+
+class CapeItem(match12.Item):
+    """A cape as a matcher item: one piece of weight 1 whose material rows have the cape model's areas. Its rows fit
+    through the response their cloth borrows (research/make_appearance.py cape_rows), a tint row through its material
+    row's (lut: the cape's material LUT); looks stay the model's."""
+    borrowed = True
+
+    def __init__(self, kit, lut):
+        super().__init__(kit)
+        cal = match12.calibration()
+        for r in self.rows:
+            r["cal"] = match12.MEASURED and (lut, r["key"][1]) in cal
+
+    def piece_weight(self, piece):
+        return 1.0
+
+
+def cape_piece(lut_name, coverage):
+    return {'path': '0' * 16, 'slot': 'cape', 'type': 'armor', 'body': 'any', 'tone_variations': 0,
+            'lut_override': lut_name, 'pattern_lut': '0' * 16, 'materials': [{'lut': lut_name, 'coverage': coverage}]}
+
+
+def cape_item(cape, shape, fields, tints=True):
+    """The cape as a matcher item: its material rows (the model's base areas), then its tint rows (the rows of its
+    cape LUT as research/capes.py tint_lut serves them: call with match.VIRTUAL_LUTS holding it, see write_capes)."""
+    height = match.lut_data(cape['lut']).shape[0]
+    areas, tint_areas = capes.model(cape, height=height, shape=shape, fields=fields, tints=tints)
+    pieces = [cape_piece(cape['lut'], [areas.get(r, 0.0) for r in range(height)])]
+    pieces[0]['pattern_lut'] = cape['pattern']
+    if tint_areas:
+        match.VIRTUAL_LUTS[cape['cape_lut']] = capes.tint_lut(cape)
+        pieces.append(cape_piece(cape['cape_lut'], [tint_areas.get(r, 0.0) for r in range(height)]))
+    kit = {'id': cape['id'], 'name': cape['name'], 'kit_type': 'Cape', 'set_id': 0, 'pieces': pieces}
+    return CapeItem(kit, cape['lut'])
+
+
+SHEET_FORMAT = 77  # DXGI BC3: the decal sheets src/recolor.lua recolors
+SHIFT_STEP = 1 / 1024  # src/recolor.lua: a sheet's color shift rounded to this (endpoints round to 5-6 bits)
+
+
+def shift_step(x):
+    return math.floor(x / SHIFT_STEP + 0.5) * SHIFT_STEP
+
+
+def sheet_recipe(emblems, picks, sheet):
+    """src/recolor.lua sheet_recipe: [(rect, shift)] of the emblems that take a color (picks: match12.cape_emblems),
+    in emblem order, a cell overlapping an earlier one left out; [] unless the sheet (capes.texture's) is BC3."""
+    if sheet is None or sheet['fmt'] != SHEET_FORMAT:
+        return []
+    cells = []
+    for i, e in enumerate(emblems):
+        if i not in picks or e['rect'] is None:
+            continue
+        r = e['rect']
+        if any(r[0] < c[2] and c[0] < r[2] and r[1] < c[3] and c[1] < r[3] for c, _ in cells):
+            continue
+        lab = picks[i][1]
+        cells.append((r, [shift_step(float(lab[k]) - e['lab'][k]) for k in range(3)]))
+    return cells
+
+
+def write_capes(items, s):
+    """tests/fixtures/capes.lua: the cape kits, their rows (material rows, then tint rows) and their plans against
+    CAPE_SOURCES, and the tint colors (cape LUT column 3 RGB) built for the first source's plan. The runtime's data
+    scope: a cape's LUT, fields, cape LUT and gradient are searched in its archive and the shared one; a cape without
+    its LUT there keeps its colors (no rows), one without its fields there reads as plain, one without its cape LUT or
+    gradient there has no tint."""
+    shape, shared = capes.outline(), s.toc(eval_scope.SHARED)
+    out = []
+    for cape in capes.cape_kits():
+        toc = s.toc(cape['archive'])
+        have = lambda h: (int(h, 16), slim.TEXTURE) in toc or (int(h, 16), slim.TEXTURE) in shared  # noqa: E731
+        rows, plans, tints, zones, emblem_rows, sheets = [], [], [], [], [], []
+        if have(cape['lut']):
+            fields, tinted = have(cape['fields']), have(cape['cape_lut']) and have(cape['gradient'])
+            item = cape_item(cape, shape, fields, tinted)
+            rows = [[f"{r['key'][0]}:{r['key'][1]}", r['tex_area'], float(r['model_lab'][0]),
+                     float(r['model_lab'][1]), float(r['model_lab'][2])] for r in item.rows]
+            borders = capes.zones(cape, shape=shape, fields=fields, tints=tinted)
+            zones = [[z, q] + counts for z, by_row in borders.items() for q, counts in by_row.items()]
+
+            def cape_plan(src):
+                return match12.cape_zones(match12.plan(item, items[src]), item, items[src], borders, cape['lut'],
+                                          cape['cape_lut'])
+            plans = [[src, zlib.adler32(plan_text(cape_plan(src)).encode())] for src in CAPE_SOURCES]
+            if cape['cape_lut'] in match.VIRTUAL_LUTS:
+                built = capes.build_tints(cape, cape_plan(CAPE_SOURCES[0]), item)
+                tints = [[r] + rgb for r, rgb in sorted(built.items())]
+            # emblem-sheet layers (round 2): read where the runtime reads them (cape LUT and sheet in scope)
+            emblems = capes.emblem_analysis(cape, shape=shape, fields=fields, tints=tinted) \
+                if have(cape['cape_lut']) and have(cape['decal']) else []
+            emblem_rows = [[e['row'], e['layer']] + e['lab'] + [e['cells']] + list(e['rect'] or (-1, -1, -1, -1))
+                           + [q] + counts for e in emblems for q, counts in e['around'].items()]
+            sheet = capes.texture(cape['decal']) if emblems else None
+            for src in CAPE_SOURCES:
+                picks, _ = match12.cape_emblems(cape_plan(src), item, items[src], emblems, cape['lut'],
+                                                cape['cape_lut'])
+                cells = sheet_recipe(emblems, picks, sheet)
+                if cells:
+                    # the mip chain (the stream part; the GPU part repeats the resident small mips after it)
+                    chain = sum(capes.mip_bytes(sheet['fmt'], max(1, sheet['w'] >> m), max(1, sheet['h'] >> m))
+                                for m in range(sheet['mips']))
+                    data = sheet['data'][:chain]
+                    for rect, shift in cells:
+                        data = capes.recolor_sheet(data, sheet['w'], sheet['h'], sheet['mips'], rect, shift)
+                    sheets.append([src, zlib.adler32(data), [list(r) + d for r, d in cells]])
+            match.VIRTUAL_LUTS.pop(cape['cape_lut'], None)
+        out.append({'id': cape['id'], 'name': cape['name'], 'archive': cape['archive'], 'kit_type': 'Cape',
+                    'set_id': 0, 'pieces': [{'path': '0' * 16, 'slot': 1, 'type': 0, 'body': 3, 'lut': cape['lut'],
+                                             'pattern': cape['pattern'], 'tone': 0, 'fields': cape['fields'],
+                                             'cape_lut': cape['cape_lut'], 'gradient': cape['gradient'],
+                                             'decal': cape['decal']}],
+                    'rows': rows, 'plans': plans, 'tints': tints, 'zones': zones, 'emblems': emblem_rows,
+                    'sheets': sheets})
+    write('capes.lua', lua(out))
+    print('capes', len(out), 'with', sum(len(c['rows']) for c in out), 'rows,',
+          sum(1 for c in out if any(':' in r[0] and r[0].split(':')[0] == c['pieces'][0]['cape_lut'] for r in c['rows'])),
+          'with tint rows,', sum(len(c['tints']) for c in out), 'tints built,', sum(len(c['emblems']) for c in out),
+          'emblems,', sum(len(c['sheets']) for c in out), 'recolored sheets')
 
 
 def main():
@@ -219,7 +404,7 @@ def main():
                         cache[mask] = coverage64(s, archives, mask)
                     m['coverage'] = cache[mask]
     print('coverage', round(time.time() - t0, 1), 's', len(cache), 'masks')
-    match.row_info = lambda lut_hash, r, _c={}: _c.setdefault((lut_hash, r), row_info64(lut_hash, r))
+    match.row_info = row_info_cached
     items = {k['id']: match12.Item(k) for k in scoped}
     print('measured items', sum(1 for i in items.values() if i.measured), 'of', len(items))
     print('items', round(time.time() - t0, 1), 's')
@@ -239,52 +424,75 @@ def main():
                       float(r['model_lab'][1]), float(r['model_lab'][2]), r['metal'], r['camo'], r['mode'],
                       match11.full_metal(r['key'])]
                      + [float(x) for x in match12.mean_albedo(match.lut_data(r['key'][0])[r['key'][1]])]
+                     + [match.emissive(*r['key'])]
                      for r in item.rows]
     write('rows.lua', '{' + ', '.join(f'["{k}"] = {lua(v)}' for k, v in rows.items()) + '}')
     pats = {kid: [[pt['pattern'], pt['tex_area']] for pt in match12.item_patterns(item)] for kid, item in items.items()}
     write('patterns.lua', '{' + ', '.join(f'["{k}"] = {lua(v)}' for k, v in pats.items() if v) + '}')
     helmets = [k['id'] for k in kits if k['kit_type'] == 'Helmet'][:limit]
     armors = [k['id'] for k in kits if k['kit_type'] == 'Armor'][:limit]
+    # Recolor Hoods off: the hooded helmets with their hood rows kept
+    kept = {k['id']: match12.Item(k, keep_hoods=True) for k in scoped if match12.hood_keys(k['id'])}
     plans, transfers, pattern_plans, index = {}, {}, {}, 0
+    pattern_texels = []
+    plans_hoods, materials, material_transfers, painting = {}, {}, {}, 0
     for h in helmets:
         for a in armors:
             for direction, t, src in (('h', h, a), ('a', a, h)):
                 mapping = match12.plan(items[t], items[src])
-                parts = []
-                for tk, (kind, g, _) in sorted(mapping.items(), key=lambda kv: f'{kv[0][0]}:{kv[0][1]}'):
-                    rep = g['rep']['key']
-                    parts.append(f'{tk[0]}:{tk[1]}=' + ('~' if kind == 'accent' else '') + f'{rep[0]}:{rep[1]}')
-                text = ';'.join(parts)
                 key = f'{direction}{t}{src}'
-                plans[key] = zlib.adler32(text.encode())
+                plans[key] = zlib.adler32(plan_text(mapping).encode())
                 pplan = match12.plan_patterns(items[t], items[src])
                 if pplan:
                     ptext = ';'.join(f'{h}={acc["rep"]["key"][0]}:{acc["rep"]["key"][1]}'
                                      for h, (acc, _) in sorted(pplan.items()))
                     pattern_plans[key] = zlib.adler32(ptext.encode())
+                    if len(pattern_plans) % PATTERN_EVERY == 0:
+                        pats = {p['pattern']: p for p in match12.item_patterns(items[t])}
+                        for name, (_, desired) in sorted(pplan.items()):
+                            p = pats[name]
+                            pattern_texels.append([key + ':' + name, [float(x) for x in desired],
+                                                   [float(x) for x in p['gain']] if 'gain' in p else False,
+                                                   [float(x) for x in match12.pattern_color(p, desired)]])
                 if index % TRANSFER_EVERY == 0 or {t, src} == TEST_PAIR:
                     transfers[key] = transfer_cases(mapping, items[t])
                 index += 1
+                if direction == 'h' and t in kept:
+                    plans_hoods[key] = zlib.adler32(plan_text(match12.plan(kept[t], items[src])).encode())
+                painted = match12.plan(items[t], items[src], materials=True)
+                finishes = match12.finishes(items[t], painted)
+                if finishes:
+                    materials.setdefault(direction + t, []).append(src + ':' + finish_text(finishes))
+                    if painting % MATERIAL_EVERY == 0 or {t, src} == TEST_PAIR:
+                        material_transfers[key] = material_cases(painted, items[t])
+                    painting += 1
     write('plans.lua', '{' + ', '.join(f'{k} = {v}' for k, v in plans.items()) + '}')
     write('transfers.lua', '{' + ', '.join(f'{k} = {lua(v)}' for k, v in transfers.items()) + '}')
     write('pattern_plans.lua', '{' + ', '.join(f'{k} = {v}' for k, v in pattern_plans.items()) + '}')
-    print('pattern plans', len(pattern_plans))
+    write('pattern_texels.lua', lua(pattern_texels))
+    write('plans_hoods.lua', '{' + ', '.join(f'{k} = {v}' for k, v in plans_hoods.items()) + '}')
+    write('materials.lua', '{' + ', '.join(f'{k} = {zlib.adler32("|".join(v).encode())}'
+                                           for k, v in materials.items()) + '}')
+    write('material_transfers.lua', '{' + ', '.join(f'{k} = {lua(v)}' for k, v in material_transfers.items()) + '}')
+    print('pattern plans', len(pattern_plans), 'with', len(pattern_texels), 'texels sampled')
     print('transfers', len(transfers), 'plans,', sum(len(v) for v in transfers.values()), 'rows')
+    print('hood-kept plans', len(plans_hoods), 'of', len(kept), 'hooded helmets')
+    print('material plans that paint', painting, 'in', len(materials), 'targets; transfers', len(material_transfers),
+          'plans,', sum(len(v) for v in material_transfers.values()), 'rows')
     print('plans', len(plans), round(time.time() - t0, 1), 's')
+    write_capes(items, s)
     if '--quality' in sys.argv:
-        results = []
-        for h in helmets:
-            for a in armors:
-                for direction, t, src in (('helmet<-armor', h, a), ('armor<-helmet', a, h)):
-                    mapping, _ = match.plan(items[t], items[src], 'full')
-                    m = match.metrics(items[t], items[src], mapping, 'full')
-                    m.update({'direction': direction, 'same_set': items[h].kit['set_id'] == items[a].kit['set_id']})
-                    results.append(m)
-        summary = match.summarize(results)
-        for d, v in summary.items():
-            print(d, {k: (round(x, 4) if isinstance(x, float) else x) for k, x in v.items() if k in (
-                'pairs', 'worse', 'lens_untouched', 'foreign_before_median', 'foreign_after_median',
-                'foreign_after_p99', 'foreign_after_max', 'light_lost')})
+        # The shipped algorithm (match12.plan, match12.transfer: the fitter) judged in one perceived space
+        # (research/quality.py); v1.3 and earlier ran the v10 planner and metrics here.
+        import quality
+        every = int(sys.argv[sys.argv.index('--every') + 1]) if '--every' in sys.argv else 1
+        t1 = time.time()
+        results = quality.evaluate(items, helmets, armors, every)
+        (RESEARCH / 'results').mkdir(exist_ok=True)
+        (RESEARCH / 'results' / 'quality13.json').write_text(json.dumps(results))
+        print('quality', len(results), 'plans', round(time.time() - t1, 1), 's')
+        for d, v in quality.summary(results).items():
+            print(d, {k: (round(x, 4) if isinstance(x, float) else x) for k, x in v.items()})
 
 
 if __name__ == '__main__':

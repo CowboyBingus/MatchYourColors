@@ -2,7 +2,9 @@
 
 Steam build 25480438 (EXE 1.8.46015.0). Formerly Helmet Color Match (unpublished test builds). The research named
 below (`research/`: the Python prototypes of the matcher, the game-data extracts, the measurement in the Armory)
-stays out of this repository; `tests/fixtures/` carries its results for the parity tests.
+stays out of this repository; `tests/fixtures/` carries its results for the parity tests. v1.3 adds the suit rule
+(Matching), the Recolor Hoods, Match Materials and Paint Scheme options and Sync With Mod Users (Options), the mods'
+patch files (Mods that change helmets and armor) and the glowing-paint rule.
 
 ## Colors come from the game's files
 
@@ -16,7 +18,15 @@ A piece whose unit is in neither archive is left out; a missing ID mask gives un
 of the quality results below (Matching). The mod also ships one measurement per item (Measured appearance, below);
 items released after it use the texture model.
 
-Files are read with `CreateFileW`/`ReadFile` into the mod's own buffers, only while a recolor job runs.
+Files are read with `CreateFileW`/`ReadFile` into the mod's own buffers, only while a recolor job runs. Mods'
+patch files come first (Mods that change helmets and armor, below). The job's handles are overlapped
+(`FILE_FLAG_OVERLAPPED`, `src/files.lua`): a read the disk does not answer at once (real play v1.2: single reads of
+62.5 and 141.9 ms) is polled once per frame with `GetOverlappedResult` (no wait) while the job yields, so the game's
+frame never waits on the disk; a read from the OS cache completes inside `ReadFile` as before. Its buffer stays
+referenced until it completes; a job dropped at a pause or stop has its read cancelled (`CancelIoEx`) and waited out
+before the buffers go (`Files.settle`). Checked offline in LuaJIT and the game's `lua51.dll` with an unbuffered read of
+`bundles.02.nxa` that went pending (997, then 996 per poll until done, bytes equal to a plain read's; `GetLastError`
+survives LuaJIT's work between the calls) and with a cancel of a pending read.
 
 | Step | Source | Notes |
 | --- | --- | --- |
@@ -45,6 +55,17 @@ the trimmed mean (25th-75th percentile) of its screen luminance against the mean
 AC-2 Obedient's hood fabric, L 18 on screen, measured L 36 from the highlights on its folds). A kit counts as measured
 when every LUT of its rows was measured (else the kit changed since, or the rows are another body's pieces).
 
+**What a mod's patch leaves valid** (v1.3, review 2026-10-06; `src/kits.lua` `mark_patched`). A measurement belongs
+to the archived files. An analysis that read a resource from a mod's patch (Mods that change helmets and armor,
+below) compares each patched LUT row with the archived one: a change only in the color columns (0, 2, 5, 6, 16-19)
+keeps the row's response, which belongs to its material, and scales its measured light by the new colors' luminance
+over the archived ones; a change in any other column (gloss, metal, roughness, mode, emissive) drops the row's
+response, and the row takes the model color (`finish_changed`). A weighted, non-skin piece whose unit, material or ID
+mask came from a patch marks the whole analysis `geometry_patched`: its pixels per row were counted on the archived
+units and masks, so the item takes the texture model. A kit record whose rows' LUTs its own measurement does not
+cover (a transmog's look composed onto another item's record) takes the one measured kit with exactly those LUTs
+(`src/appearance.lua` `kit_for`), else the model. Before v1.3 a metal row a mod made matte kept its metal response.
+
 What the measurement showed: the texture model counted parts that never show (the SR-64 Cinderblock's lime row,
 1.6% of its texture, 0 pixels) and misweighted others (the I-92 Fire Fighter's tan padding: 11% of its texture, 4.8%
 on screen); and paint looks differ from the model by more than the matching tolerances (matte rows -6 to +8 L, bare
@@ -65,6 +86,15 @@ v1.1 builds v11). For a measured item it uses screen shares and perceived colors
 - An armor's identity: its most salient paint (share, undersuit 0.5, dark neutrals 0.5); when that looks dark
   (perceived L < 30, neutral) and a main color (share >= 0.15) that looks light shows more light, that color (the
   SR-64 Cinderblock reads as its light plates; 10 of 135 armors). Unmeasured items keep v11.5's dark weight 0.25.
+- A helmet's identity: its largest paint group, unless that is vivid (model chroma >= 35) on less than half of its
+  paint while a muted group (chroma < 20) covers at least 0.10: then the largest muted group, and the vivid color stays
+  its accent. An armor is far larger than a helmet: the PH-9 Predator's red beret (42% of what shows) had turned whole
+  dark armors bright red (user 2026-10-06, rendered validation). 4 of 158 helmets (the Predator, two B-01 Tactical
+  variants in red and yellow, the AF-02 Haz-Master); 406 of their 540 armor plans change.
+- An armor whose paint outside its undersuit black never reaches 0.15 of what shows (no group of its own that large)
+  reads as that black: as a source its undersuit groups count as paint, for the identity and the pairs (the SC-34
+  Infiltrator, 93% undersuit, had its 2% light-grey trims as identity and turned helmet bases white, user
+  2026-10-06; 12 of 135 armors, 1,871 helmet plans). As a target, and for helmets, the undersuit rule stays.
 - The anchor is the target's largest part (share >= 0.10) of the identity's look class (dark or not), else one that
   already matches it, else the largest: the helmet's main part takes the armor's main color (the FS-23 Battle
   Master's shell, not its smaller crest). A part that already matches one of the source's main colors (share >=
@@ -73,11 +103,118 @@ v1.1 builds v11). For a measured item it uses screen shares and perceived colors
   from 0.5%.
 - The fit (`src/transfer.lua`) reaches the desired perceived color through the row's own response, so a glossy or
   metal row lands where it looks right; a pattern's new texel color is the desired color through its measured gain.
+  It starts from the row's own colors: a step is kept only when it ends closer to the desired color than they are
+  (review 2026-10-06: the first step used to replace them whatever its error; 126 of the parity test's 1,865 fitted
+  rows ended farther, the worst from 17.4 to 28.5 CIEDE2000, 23 from under 1 to over 1). The fitted paint's chroma
+  stays within 1.5 x the desired chroma + 10, and on bare metal (metallic > 0.5) within the desired chroma: a metal's
+  reflections take its paint's color at full strength, so the eye reads the paint's chroma, while its mean look (the
+  model's) is diluted by its dark parts. Measured on screen (rendered validation, 2026-10-06): the CPR-80 Bulwark from
+  the DP-8 Mountain-Scaled's dull navy (look chroma 9) got a paint of chroma 17; its mean look matched (chroma 9.6,
+  CIEDE2000 2.5), but its brightest quarter of pixels showed b -13.8 against the navy's -3.5, and the user saw a deep
+  blue that matched nothing. Capped, its paint has chroma 8.5. 7 of the study's 31 pairs change, two of them in their
+  main part.
+- A source color below chroma 5 passes its lightness only: the goal is neutral and the target rows keep none of their
+  hue offsets (a row that becomes that paint under Match Materials still aims at its own look: the same material shows
+  the same tint). The GS-66 Lawmaker's silver measures b -3.7 (the Armory's bluish fill light in its metal) and its dark
+  visor surround a navy that reads black; the B-24 Enforcer's leather took them as navy-purple and its plates as
+  steel-blue (image review of the rendered validation, 2026-10-06).
+- A bare-metal target group (Match Materials off) whose source color is dark and colored (perceived L < 30, chroma >= 8)
+  takes the source's most visible bare-metal group (at least 0.05 of its paint) instead, when the source has one: a
+  dark color on bare metal shows only in dim reflections and reads near-black (the capped Bulwark from the DP-8
+  Mountain-Scaled, displayed median L 8-10 against the navy's 19-27), while its steel echoing the armor's chainmail
+  reads as one material. 627 of 42,660 plans give a metal part a dark colored goal; 159 such parts have source metal.
+  Dark neutral goals on metal stay (black steel with a black armor looked right in the review).
+- A metal group's accent class goes by its look's chroma when that is higher than its model color's (the model color
+  of metal is darkened and muted): the RE-2310 Honorary Guard's gold band (15%, model chroma 28, look 42) took the
+  shell's black instead of the CE-27 Ground Breaker's yellow trim (image review re-check, 2026-10-06). Two helmets
+  change (with the O-44 Bonded Pilot).
   An unmeasured bare-metal row taking paint keeps v11.2's 0.04 paint-reflection lift.
+- Accents without a saturated source accent (user, manual testing 2026-10-07, Armor Matches Helmet; an independent
+  review's notes): v1.1 to v1.3 kept them their own color, so a 1.5% yellow trim stayed on the DP-00 Tactical with the
+  white and grey CW-36 Winter Warrior, the AF-02 Haz-Master's yellow suit (31.6%, an accent by its chroma) stayed with
+  the IX-VOIDWALKER, and the DP-40 Hero of the Federation's gold trims, which the pairing gave the Voidwalker's navy,
+  were set back to gold. A source's second color is its most salient paint group other than the identity and at least
+  CIEDE2000 8 from it (hoods, and structure unless its suit is its paint, left out). With one, accents keep the
+  pairing's color, and accents under the 2% pairing minimum and saturated patterns take the second color; without one
+  (a one-color source) they keep their own, as its one color would erase them (the RE-2310 Honorary Guard armor's gold
+  trim with the all-dark AC-2 Obedient, agreed 2026-10-05; a gold braid gone black was one of the user's reports).
+  1,802 helmet and 6,450 armor plans change (751 and 2,359 of them in their pattern plan).
+- A colored trim (chroma >= 20) on a dark neutral anchor (model L < 35, chroma < 10) is an accent up to 0.15 of the
+  paint (LARGE_AREA), so its class does not flip between 9.9% and 10.5%: the DP-53 Savior of the Free's gold braid
+  (10.5%, model chroma 26) took the B-01 Tactical's dark shell instead of its yellow stripe (user 2026-10-07). On a
+  colored main part a trim over 0.10 still pairs like a part. 135 helmet and 185 armor plans change. A trim goes by
+  its hue family's share (its own plus every other saturated group within 30 degrees of hue, `family_share`): the CM-14
+  Physician's green is two groups (14.6% and 12.1%), each had passed as a trim and taken the RS-67 Null Cipher's 0.28%
+  yellow, turning a quarter of the armor yellow (user 2026-10-07); 43 of 42,660 plans change, all with the Physician.
+- A target accent over 0.10 of the paint takes the source's accent only when the source shows it on at least 1%
+  (`ACCENT_SOURCE_BIG`), else what the pairing gives it: the Null Cipher's 0.28% yellow also painted United in
+  Equality's 24% purple band. The agreed accents keep theirs (the I-44 Salamander's 7% orange, under 0.10, takes the
+  SR-64 Cinderblock's 0.12% emblem; the RE-2310 Honorary Guard's 15% band the CE-27 Ground Breaker's 2.8% trim).
+- Such a speck (a source accent under 1%) recolors a target accent bigger than itself only within the accent's hue
+  family (30 degrees, `speck_across`): the Null Cipher's 0.28% yellow turned the Physician's 3% red canisters a bright
+  yellow (image review 2026-10-07, 66 degrees apart); they take the pairing's dark now. Every agreed accent that takes a
+  speck stays within 28 degrees (the Salamander's orange: the Bonesnapper's 0.87% red, the Doubt Killer's 0.5%, the
+  Cinderblock's 0.12% orange) or is smaller than it (the Null Cipher's 0.3% marks take the Doubt Killer's 0.5% red).
+  Patterns keep their rule (the FS-23 Battle Master's stripes take the Doubt Killer's red, agreed). 511 of 42,660
+  plans change.
+- A light neutral painted pattern (model chroma under 20, L at least 40) takes the source's neutral paint nearest in
+  lightness (palette groups under 20 chroma, hoods and structure left out unless the suit is the paint) when the source
+  has two or more, else keeps its own (one neutral would erase it), and never a saturated color: the Physician's cream
+  panels (a pattern, 13.7% of what shows) stayed cream on the all-dark Null Cipher and take its grey now. Dark neutral
+  patterns keep their color, as dark undersuits do. 13 items have neutral patterns; 877 pattern plans change (the B-01
+  Tactical helmets, B-24 Enforcer, Physician, PH-9 Predator, CE-35 Trench Engineer, A-35 Recon, AF-91 Field Chemist,
+  I-09 Heatseeker).
+- An armor target with no paint group of 0.05 outside its undersuit (all suit) pairs its undersuit groups like paint
+  instead of giving them a dark neutral: the O-3 Free Spirit (97% suit) changed only a 2% metal piece with the UF-50
+  Bloodhound, and a B-01 Tactical variant whose one dark group (92% of what shows) is 50.1% undersuit did not change
+  with the IX-VOIDWALKER, where at 49.9% it took the cream (user 2026-10-07). 7 of 135 armors (also the SC-34
+  Infiltrator, SA-25 Steel Trooper and the RS-100 Sanctioner armor), 843 plans. On an armor with a paint part of 0.05
+  a group still changes class at 50% undersuit (open: no reported case).
+- A camo color more than 60 degrees in hue from its row's saturated paint takes the new hue, its chroma scaled like the
+  paint's, instead of turning with the paint: the TG-8 Sharpshooter's brown camo color (55 degrees) turned with its
+  olive paint's turn to the UF-50 Bloodhound's maroon (-107 degrees) to a purple neither item has (user 2026-10-07).
+  Base, detail and wear colors of another hue still stay. 3 kits have such rows (the TG-8 Sharpshooter, two CE-64
+  Grenadier kits); 48 helmet and 71 armor plans give them a saturated goal.
+- A pattern's new texel goes through its measured gain (perceived = gain x texel, per channel) only where that keeps
+  the desired hue: the gain is measured at the pattern's own color over its own base, and the B-01 Tactical's yellow
+  stripes asked for the IX-VOIDWALKER's navy got a texel of hue 167 degrees (the navy's -99) and showed grey-green on
+  screen (rendered check 2026-10-07). When the per-channel texel would be more than 60 degrees from the desired hue,
+  or the desired color is near-neutral (chroma < 5), the gain's luminance alone scales the desired color. 2,141 of the
+  9,042 measured pattern texels the plans set (the second color made far and near-neutral goals common: 171 would turn
+  more than 60 degrees, one bluish white into salmon). The FS-23 Battle Master's red stripes (agreed 2026-10-05) keep
+  the per-channel texel.
+- The fit counts a matte soft row's whole gloss floor (cloth: mode 1 with no specular, column 8 x at 0): its sheen is
+  broad and reads as lightness on any paint. The TG-8 Sharpshooter's cloth fitted to the UF-50 Bloodhound's red aimed
+  at L 22 on its paint alone and looked L 29 on screen, salmon pink beside the helmet (image review); counted, it
+  renders red like the plates, and the O-3 Free Spirit's suit too. 61,133 cloth rows with a colored goal, in 11,719
+  plans. The items' own looks keep the hard rule for every row: counting the floor of every soft row there turned the
+  UF-84 Doubt Killer's red trim (glossy leather, column 8 x 0.3, a cyan floor) coral again, the look the user
+  corrected in v12; counting a matte cloth source's floor moved 2,060 plans (in its look) or, in the goal it gives
+  alone, made matches worse on screen (the DS-10 Big Game Hunter helmet's hood on the B-01 Tactical armor: anchor
+  CIEDE2000 3.9 -> 12.2, a pale cream for its golden tan; image review: worse on three of four pairs). The cloth does
+  render lighter than its paint, but a recolored part also renders lighter than it aims (the light-paint bias above),
+  and the two cancel: the source side waits for a calibration of that bias.
 
-Every pair the user reported (sixteen, 2026-10-05) is checked against the look agreed for it in
-`tests/test_parity.lua`, with the lightness the Obedient's armors, the Cinderblock's helmets and the Salamander from
-the Doubt Killer and the Fire Fighter must reach. Judged by what the Armory shows (`research/scratch/eval12.py`, all
+**Rendered validation (2026-10-06, KB match-your-colors-rendered-validation).** Measured on screen in harness sessions
+(`research/live/live_rendered.py`): 31 pairs chosen for what the model handles worst (metal and vivid sources and
+helmets) plus a random sample, on both body types (the preview's own body setter, preview only), each turned to 0, 90,
+180 and 270 degrees; every row's look as rendered (hue-coded row maps, the look over its matte lighting). With the
+fixes it and an independent review of its 62 renders brought (metal paint chroma, a helmet's vivid minority, neutral
+tints, metal echo, metal accents), the recolored anchor part ends a median 3.8-5.7 CIEDE2000 from the source identity
+in every view and body (p90 8.6-15.1; a metal shell that echoes the source's metal counts as a miss here, as the
+CPR-80 Bulwark's silver does), the share of the target's paint more than 10 from every source color a median
+0.014-0.029 (p90 0.20-0.50). The model's response is
+linear up to the sRGB 0.25 it was measured at and not above: light paints render about 5 L lighter than forecast, on
+both items, so the anchor ends a median +2 L lighter than the identity. Mission lighting was not reachable from the
+harness. Round 4 (2026-10-07) added the seven pairs of the user's manual testing, the DP-00 Tactical <- UF-50
+Bloodhound control and the SC-34 Infiltrator <- CW-36 Winter Warrior (pairs 32-40) and re-measured the four study pairs
+its rules change: on the final build their anchor ends a median 3.0-4.5 CIEDE2000 from the source identity per view
+and body (p90 6.4-8.4; 21 before), the foreign share a median 0.006-0.064, and the image review cleared them. That
+check found the pattern texel and cloth sheen defects above.
+
+Every pair the user reported (sixteen on 2026-10-05, 38 by 2026-10-07, and the fitted colors of three) is checked
+against the look agreed for it in `tests/test_parity.lua`, with the lightness the Obedient's armors, the
+Cinderblock's helmets and the Salamander from the Doubt Killer and the Fire Fighter must reach. Judged by what the Armory shows (`research/scratch/eval12.py`, all
 21,330 helmet <- armor pairs before the second review: share of the target's visible paint further than CIEDE2000
 10 from every source color): v12 90th percentile 13% against v11.5's 45%; the helmet's main part's lightness
 against the armor's identity within -7 to +5 L (10th to 90th percentile) against -19 to +13 L.
@@ -112,8 +249,9 @@ against the armor's identity within -7 to +5 L (10th to 90th percentile) against
   below the 2% pairing minimum) take the source's accent color: its most salient saturated color (chroma x
   sqrt(share)) with share >= 0.005 and lightness >= 30 (from 20 when vivid: the common red trim, L 29) among its
   color groups and its pattern colors, so a small yellow trim of a dark armor counts. They keep their own color
-  when they are near-black (L < 20), already match a source color, or the source has no accent. A large muted
-  part (the DS-10 Big Game Hunter's 26% tan hood) is paired like a main part.
+  when they are near-black (L < 20) or already match a source color. A source without an accent: see the second
+  color above (v1.1 to v1.3 kept them their own). A large muted part (the DS-10 Big Game Hunter's 26% tan hood) is
+  paired like a main part.
 - Patterns: a kit piece's pattern texture (the kit's, else the material's default) is drawn over the base color
   where the material's pattern mask is set (`research/ref/lut.frag`); 66 of 158 helmets and 57 of 135 armors have a
   saturated one, from 17 pattern textures (the yellow-khaki `f18dfbb5346732c1` is the common one). A pattern's
@@ -160,8 +298,8 @@ than CIEDE2000 10 from every source color of share >= 0.02 and from the source's
 
 "As seen" adds the paint's 0.04 reflection to every color that is not bare metal. Worse than vanilla are mostly
 metal rows asked for a bright gold or white, which they cannot reach (the metal darkening of the model; they keep
-the brightest metal of that hue). Accents and patterns keep their color when the source has no accent or they
-already match one of its colors; fewer accents translate than in v11.4 because 58 armors' only "accent" was the
+the brightest metal of that hue). Accents and patterns keep their color when the source has no accent (since
+2026-10-07: neither an accent nor a second color) or they already match one of its colors; fewer accents translate than in v11.4 because 58 armors' only "accent" was the
 generic cape piece's yellow. The first v1.1 builds (dark weight 0.75, no undersuit rule) had 180 and 21 pairs with
 parts turned near-black, 538 and 1,223 flattened, same-set change 7.9 and 8.8.
 
@@ -171,6 +309,241 @@ Every pair the user reported (twelve, 2026-10-05) is checked against the look ag
 The Lua port equals the research pipeline (float64) on every kit's rows and patterns, on all 42,660 plans and
 pattern plans (6,180 of them change a pattern) and on the fitted colors of every planned row of 287 sampled plans
 (1e-7) (`tests/test_parity.lua`).
+
+## Options (v1.3)
+
+Four options join Color Matching and Leave Complete Sets in Mod Options Menu: Paint Scheme (a choice), Recolor
+Hoods, Match Materials and Recolor Cape (toggles); Sync With Mod Users is always on (its option was removed on
+2026-10-07 at the user's request). Each change of an option starts one recolor job, as the others do; the plan cache,
+the failure count and the checks that drop a stale result key on them. Nothing runs per frame for them; Sync With Mod
+Users has a per-frame cost (Per-frame cost).
+
+**Recolor Hoods** (on by default). Off: a hooded helmet's hood rows take no color. Hoods are rows of the helmet's
+one unit, not a piece of their own; every hood row is a soft row (mode 1: cloth, leather, rubber), but so are caps,
+berets, helmet covers, gaskets, padding and bandanas (69 helmets show soft rows over 1%). The hood rows of the
+twelve hooded helmets (RS-100 Sanctioner, AC-2 Obedient, DS-10 Big Game Hunter, IE-12 Righteous, the SC-30 Trailblazer
+Scout helmets and their six variants) were picked from the measurement's row maps and ship in
+`src/appearance_data.lua` (`hoods`, from `research/hoods.json`); a hood row must be a measured soft row of its kit.
+Armors carry scarves, cowls and collars, no hood. A helmet released after the measurement has no hood rows until
+the table is updated: its hood is recolored with the option off. With the option off the hood rows group apart
+(a hood class beside the metal and camo classes) and are no pairing target and no small accent; they still count in
+the helmet's paint, so the other parts keep their shares and roles: the RS-100 Sanctioner's hood (75%) stays, its
+mask (21%) takes the armor's main color and its gold band (3%) the accent, as with the hood recolored. Leaving the
+hood rows out of the paint like lenses was tried first: the band became 11% of what was left, a main part that took
+the orange or maroon while the mask stayed black. As a source (Armor Matches Helmet) the hood counts as before.
+
+**Match Materials** (off by default). On: a hard (mode 0) metal row (column 6 w, clipped, above 0.5) that takes a
+LUT row's paint (not a pattern's) becomes that paint, as a pair when its group is at least 5% of the item's paint, or
+as an accent of any size. Its LUT row takes the source row's metallic (clipped to 0-1), specular (column 8) and
+roughness (column 10 x), and the detail metallic controls (column 7) are cleared; mode, detail layer and controls,
+the colors' structure, camo and tiling stay the target's (`Recolor.apply_finish`). Its desired color is the source
+group's own look (the row's offset from its group came from its metal), and the fit goes through the source row's
+measured response (the model when unmeasured; no paint-reflection lift). A metal shows its color as tinted
+reflections, which depend on the view and on what it reflects: the measured front view fits most metal rows (group
+error median 1.4 to 2.5), but the look does not hold when the figure turns, and light colors are out of reach.
+
+- Offline, all 42,660 pairs, every metal row taking paint: fit error over 5 in 9.6% of them as metal, 0.4% as the
+  paint; median 1.34 -> 0.64, max 47 -> 13. Keeping the row's offset failed where the source's gloss floor depends on
+  its place (a paint that reflects 9% looks no darker than L 36).
+- Parts never turn into metal: a chrome group's look varies by row (the B-22 Model Citizen's representative row
+  reaches L 32 at most, its group looks L 42), so a fit through it misses.
+- Small metal parts (under 5%: bolts, rims, rails, small trims; 54% of helmet <- armor pairs have one) keep their
+  metal. With the threshold, 9,346 of 42,660 plans paint a part, in 83 target kits (9,403 before glowing paint
+  counted as light).
+- None of v1.0's whole-row copy failures can return: no detail layer moves (no weave on shells), column 7 never
+  moves (no chrome specks), cloth never changes (no gold fabric).
+
+**Paint Scheme** (Off by default; `src/schemes.lua`). The game's 11 weapon paint schemes (the PaintScheme slot of
+the weapon customization): each swaps the weapons' material LUTs, one shared 8 x 23 LUT per material class; the
+m_weapon LUT has the same 23 columns as armor and one row convention in all 11 schemes (r0 body paint, r1 the
+secondary paint or the camo row, r2 cloth, r3-r5 detail paints, r6-r7 metal). The scheme -> LUT link lives in the
+game's encrypted settings, so `Schemes.LIST` names each scheme's archive (from the game's hash lookup) and LUT; the
+LUT is read from the bundles once per session, its rows' metallic bias and detail metallic controls (columns 6 w and
+7) cleared (on weapons the bias only shows worn edges). The scheme is a source item of three groups: primary (share
+0.6: r0, or the camo row r1 of a camo scheme), secondary (0.25: r1, or r0) and cloth (0.15: r2, counted as
+undersuit); helmet and armor are each planned against it with `Matcher.plan`, so trims, undersuits, accents, hoods
+and lenses follow the matcher's rules. Their rows are read as paint (mean albedo, never darkened as metal: a camo
+row carries a metallic bias of up to 4.2). A row taking a solid scheme row is fitted as usual; a row taking a camo
+row copies its colors and camo columns (16-19, 21, and 20 w and 22 w: `Recolor.apply_copy`), unfitted. While a
+scheme is chosen, Color Matching and Leave Complete Sets do not apply (both items, slots 0-9); Recolor Hoods and Match
+Materials do. Checked in the game 2026-10-06 on the Armory's front view (Helldiver, Forest Camo, Urban Camo, Venus
+on the DS-191 Scorpion set).
+
+**Recolor Cape** (off by default; `src/capes.lua`). A cape kit is one piece (slot 1, type 0, body any, no unit of
+its own) on the armor's cape-mount unit, with its own material LUT (23 columns, cloth rows), cape LUT (16 x H, `+40`
+in the piece record), gradient (`+48`), decal scalar fields (RGBA, `+64`) and decal sheet; the game binds its material
+LUT to the mount material's LUT slot like an armor piece's, so the recolor path is the armor's (avatar armor slot 1,
+the UI preview's too). The cape shader (base material `dafef1303e987a57`, whose compiled programs were disassembled on
+2026-10-07: KB `match-your-colors-cape-tint`) picks the LUT row per texel from the scalar fields: the outside takes the
+first of R, G, B at least 0.496 as row 1, 2 or 3, else row 0; the inside (the lining) row 1 where R is set, else row 4.
+A is the cape's opacity; the cloth shows only inside one outline the capes share (from the 17 capes whose A covers
+47-50% of the texture; tattered capes lie inside it), shipped as 128 x 128 bits. The cape LUT holds one row of 16
+columns per material row (rows past its height read zeros): columns 0-2 shape height bands, column 3 is the **tint**
+(RGB a color in the material LUT's encoding, w its strength, the gradient inverted where w is negative) and columns
+4-15 place four emblem-sheet layers, drawn in the decal sheet's own colors (see below).
+A texel of row r takes its base color lerp(material column 0, tint, t), t = |w| x saturate(c6.w x (g' - c6.z)), g' the
+gradient (1 - it where w < 0); 41 capes have a tint over 1% of what shows (United in Equality's purple band 24%).
+Checked in the game (2026-10-07): United in Equality's band turned green with column 3 green, vanished with its
+strength 0, and came back.
+
+A cape's areas come from a 128 x 128 sample of its fields and gradient (the nearest texel of the smallest mip with both
+sides at least 128; RGBA8, RGBA16F, BC7, BC3 or BC4; only cells inside the outline, and for block formats only the
+blocks those cells need): a cell counts when its A is set; the outside weighs 13 and the inside 7 (the back shows the
+whole outside, the front part of the lining), split between its row's base (1 - t) and its tint (t, in 1/4096 steps).
+A tinted row is two colors to the matcher: the material row with its base area, and a tint row (`<cape LUT>:<row>`)
+whose color is the material row with column 0 the tint. The outside design zones (rows 1-3: emblems, marks, sashes)
+keep their border: each zone cell's 8 neighbours of other rows, by row and tint bin. A cape without fields in its
+archive or the shared one reads as plain (rows 0 and 4); one whose LUT is in neither keeps its colors; one without its
+cape LUT or gradient there has no tint. `research/capes.py` is the reference (`tests/fixtures/capes.lua`).
+
+The cape is a third target of the job: planned with `Matcher.plan` against the mode's source item (the armor with
+Helmet Matches Armor, the helmet with Armor Matches Helmet, the scheme item with a Paint Scheme), as a helmet would be,
+its LUT added to the result (slot 1, the result key gains `:cape:<kit>`). A complete set left as it is by Leave
+Complete Sets gives the cape its colors (a job with the cape alone). The applied cape kit (customization record
+`+8`) and the UI preview's (`+148`) are in the reads the mod makes anyway; a cape change starts a job only with the
+option on, and the kept identity follows the cape either way, so turning the option on recolors the cape worn then.
+After `Matcher.plan`, `Matcher.cape_zones` keeps the design zones readable: a zone that read against half its border
+(lightness contrast at least 15) and no longer does as planned (under 10) takes the source color that reads against the
+most of its planned border (the palette or the accent; ties: its light/dark order kept, then the larger share), else
+its own colors when they read, else the plan stays (over 7 sources, 465 of 1,218 readable zone plans lost their
+contrast before, 15 after). When no palette color reads by lightness (the UF-50 Bloodhound's red and black share L
+21: its red took the Pillars of Freedom's black cloth and red bars alike, and the Judgment Day's, Liberty's Herald's
+and Fre Liberam's marks went back to their own colors, user 2026-10-07), the zone first takes the palette color
+reading against the most of its border by CIELAB distance (squared; the lightness difference between neutrals), if
+that reads against half of it and against half of the zone's cloth (its border on rows that are no design zones, so
+a stripe never takes its cloth's color by reading against its outline alone), else a smaller source color (shown on
+1% or more of the source) reading by lightness (Liberty's Herald's chevron, on the Bloodhound's black above and red
+below, takes its 1.8% silver), and only then its own colors; a zone first tries the color an earlier zone of its
+target group took, so a design drawn in one color stays one. Emblem-sheet marks follow the same order. Over all 293
+sources 2,843 of 34,574 cape plans change (91 of 1,180 on the fixtures' and renders' sources, none of the reviewed
+renders). The capes were not measured (the Armory study hid the cape, its cloth keeps moving), so a
+cape row fits through the median measured response of armor rows with the same material controls (columns 1, 3, 4,
+7-10 and the mode; 467 cape LUT rows have at least 3 such rows, `research/make_appearance.py` writes them into the
+appearance table under the cape's LUT), a tint row through its material row's, and toward a neutral goal its hue is
+fitted too, so the cloth's own tint is cancelled: the Drape of Glory's suede (a gloss floor of 0.026, 0.015, 0.011,
+ten times United in Equality's cloth) took the B-01 Tactical's dark L 22.7 and showed a warm brown (image review
+2026-10-07). Looks for the pairing stay the model's. The material LUT is built as an armor's; each planned tint row is fitted on column 0 alone
+(`Transfer` `fit_base`) over its material row as built and written to column 3 RGB of a copy of the cape LUT, which is
+bound to the cape unit's materials' cape LUT slot (`0x0E494183`) beside the LUT; w and every other column stay. The
+cape's analysis is cached like a kit's (format 9: `C` tint lines, `Z` zone lines, `E` emblem lines; its piece
+checksum includes the fields', cape LUT's, gradient's and decal sheet's names). One log line per cape plan reports the
+tint's share, what the zone and emblem rules did and the largest fit error.
+
+Emblem-sheet layers: a layer whose strength (|column 6, 9, 12 or 15 y|) exceeds 0.001 draws, on the outside cells of
+its row, the cape's decal sheet (`+80` in the piece record; 2048 x 2048 BC3 with 12 mips for the 7 real sheets) over
+the cloth: albedo = lerp(albedo, sheet RGB, strength x sheet A), at the sheet UV the shader computes from the placement
+(column 4: center and size in the cape's uv2), the sheet offset, rotation and scale (column 5) and the mirror (the sign
+of column 6 y). The cape materials' decal constants (decal_id 0, use_decal_rgb_channels 0) leave the sheet's RGB as
+the emblem's color. uv2 is taken as the fields' uv0 (the renders agree). The analysis samples the sheet's 256 x 256
+mip on the grid: per layer its own color (the blend-weighted mean, display-linear), the cloth under its cells (blend at
+least 0.5) by row and tint bin, and the mip-0 sheet texels it samples (64 x 64 points over its placement, 2 texels of
+margin); 85 such emblems show on the capes in scope. `Matcher.cape_emblems` (after the zones) keeps them readable by
+the zone rule's test against that cloth: one that read and no longer does takes the source color reading against the
+most of it. The job then copies the cape's sheet (its whole mip chain read in 256 KB pieces, the last sheet read kept
+for the session) into a buffer outside the Lua heap (the game's LuaJIT keeps every Lua object below 2 GB, shared with
+the whole game) and moves the two color endpoints of every BC3 block over the emblem's texels at every mip by the
+color shift (in 1/1024 steps of CIELAB, so the reference and the runtime round alike), its color indices and alpha
+kept: the emblem keeps its shape, edges and shading. The plan keeps only this recipe; the last 2 recolored sheets are
+kept ready. The copy is a BC3 texture with its mip chain (RenderBufferApi format `0x10000002`, view[6] the mip count;
+the engine's format table at exe `0x190c840` lists BC1-BC7 as `0x10000000` + 0-6), bound on the cape unit's
+materials' `decal_sheet` slot (`0x632A8B80`) beside the LUTs; made once (one frame's renderer wait) and refilled after.
+Checked in the game first with a probe (2026-10-07: copy, grey and yellow emblems on the Drape of Glory, restored).
+Outside the game a recolor reads the sheet in 2-3 ms, copies it in 0.7 ms and recolors the emblem in 6-7 ms, sliced
+(longest stretch 0.66 ms before the copy was split). 44 recolored sheets (capes x six sources) equal the reference
+byte for byte. Example (Armor Matches Helmet, the CW-36 Winter
+Warrior with United in Equality): the dark cloth and lining stay dark (L 24), the purple band takes the helmet's light
+(L 59), and the emblem, which would vanish on it, takes the dark. Analysis is about 23 ms per cape outside the game,
+in the sliced job (99% of the stretches between its pauses under 0.4 ms).
+
+Cost: the analysis decodes at most the 128 x 128 sample's blocks with an allocation-free BC3/BC7 decoder (the BC7
+decoder's per-block tables and closures, 2 MB per cape, were replaced by reused state: 11 KB per cape now) and pauses
+after every grid row, every 16 rows of the row count and every LUT row. Outside the game: 5.0 ms of work per cape on
+average, 11 ms at most (BC7), longest stretch between pause points 0.94 ms. Unmeasured in game.
+
+**Sync With Mod Users** (always on, no option; `src/sync.lua`, `src/remote.lua`). Each player's settings travel as the
+PlayFab lobby member property `cbmyc` of the squad's lobby: `1|<mode>|<flags>|<scheme>` (flags: complete sets 1, hoods
+recolored 2, materials matched 4, cape recolored 8); no colors, names or other data. The lobby is the one Better Lobby Management reads:
+network context `[game + 0x347CEF0]`, engine lobby `+0x1D470`, its PlayFab lobby `+0x10` (state `+0x118`, 3 =
+joined; handle `+0x120`, an exact 64-bit token; the local entity key `+0x130`). PlayFab's exports
+(`PFLobbyPostUpdate`, `PFLobbyGetMembers`, `PFLobbyGetMemberProperty`) come from `PlayFabMultiplayerWin.dll`
+(`GetModuleHandleA`, `GetProcAddress` once per session). Every 120 frames, with the lobby joined and while the
+local Helldiver exists (not on the title screen, while loading or dead), the mod reads the member list and each other
+member's value from PlayFab's local copy of the lobby; it posts its own value once per lobby and after an options
+change has settled for 300 frames, once the lobby has stayed joined under one handle for 600 frames, never while not
+joined (a failed post can set the game's lobby session state 4) and at most once per 300 frames (1,800 after a
+failure). A post names the local user by PlayFab's own key of the local member (from that poll's member list, valid
+until the game processes PlayFab's state changes), not the game's copy at `+0x130`, which is only read for the id.
+
+The buffers the post's member update points into (`keys`, `values`, the key and value strings) stay referenced from
+the natives table for the session: a pointer stored in a cdata struct keeps nothing alive. Until 2026-10-07 the keys
+array was referenced by nothing but the update struct; a collection freed it, its memory was reused, and
+`PFLobbyPostUpdate` read a garbage key pointer (`keys[0] = 0x13FE3012E`) and the game crashed at
+`PlayFabMultiplayerWin+0x5fde4` on the user's first post, five seconds after reaching the ship and after a 1.4 MB
+recolor job. Reproduced in a harness session with the keep line removed (collections and 24,000 junk pointer arrays
+after the first post, then an options change: the same crash address) and gone with it (both posts, clean quit);
+`tests/test_sync.lua` checks it with fake exports. The value stays
+in the lobby while the player is in it (`Sync.session` still removes it when given none; the addon always shares
+since the option went, so every mod user reads the others' values).
+
+A member's entity id is its peer id in hex without zero padding (the engine prints peer ids with `%llX` and parses
+entity ids with base-16 `strtoull`: the harness account's id has 15 digits); it is matched to a player record's peer
+(player manager `+712 + 56 * index`). For each other player who shares a valid value the mod resolves their kits
+and avatar as for the local player (without the owned-by-this-machine check), runs the same job with their settings
+in the single job slot (after the local avatar and UI preview), and binds pooled textures to their units with a
+controller of its own; it restores and drops the entry when they leave, stop sharing or share something unreadable,
+and tries a failing job three times. Only the local player's units are matched to the local member, and only in the
+test build's loopback (`set_loopback`), where the local recolor is off and the sync path recolors the local
+Helldiver from its own posted value. Checked in the game 2026-10-06 in loopback: the post, the read-back and the
+recolor (84 bindings) through the real PlayFab lobby. Played between a host and a client on 2026-10-07 (the user's
+test with the fixed build): each saw the other's colors, so other players' peer ids are their entity ids too. A
+sharing member whose peer names no player here is noted once in the log (until it has one).
+
+Tests: `tests/test_parity.lua` checks the 1,620 hooded-helmet plans with hoods kept, the rows every target paints
+(per target kit, over all sources), the fitted colors of 383 painted rows of 96 sampled plans, and every cape's rows
+(118 capes, 492 rows) and its plans against six helmets and armors (702) against the research pipeline;
+`tests/test_units.lua` the cape model, the outline, BC3 decoding as Pillow's and allocation-free BC3/BC7 blocks;
+`tests/test_addon.lua` the cape recolored only with the option on, a cape change with the option off, the preview's
+cape; `tests/test_job.lua` runs both options end to end on the game's files (the CPR-80 Bulwark's
+metal shell takes the DS-191 Scorpion's finish; the RS-100 Sanctioner's hood rows stay vanilla). The user's pairs of
+2026-10-06 are pinned in REPORTED (26 pairs in all). Mutation check `research/scratch/mutants_v13.py`: 25 of 25
+mutants of the new code killed, each by the check written for it.
+
+## Mods that change helmets and armor (v1.3)
+
+Mod managers install every mod as patches of the boot archive `9ba626afa44a3aa3` (`data/9ba626afa44a3aa3.patch_N`,
+each a classic archive file: the table of contents at offset 0, the stream and GPU parts beside it as `.stream` and
+`.gpu_resources`). The game loads that archive's patches at boot, before any helmet, armor or cape archive, so a
+texture, material or unit a patch holds replaces the archived one of the same name and type; between patches the
+higher number wins. Up to the first v1.3 builds the mod read only the slim bundles: a LUT mod's helmet was analysed
+and rebuilt from the original LUT, so its recolor put the original colors back (user report 2026-10-06, with the
+HAA helmet LUT edits, a visor-glow pack and a cape mod). `src/patches.lua` now lists the data folder's patch files
+once per session (`FindFirstFileW`), reads their tables of contents and indexes their textures, materials and units;
+every lookup tries the boot archive's patches (highest number first), then the searched archive's own patches, then
+the archive. A LUT mod's helmet is then analysed and recolored from its modded LUT, and its rows that keep their
+colors (lenses, lights, kept hoods) keep the modded values. The index's signature (a checksum of every indexed entry
+and the bytes of its parts up to 64 KB) is part of the analysis cache's first line: managers zero the files' dates,
+and two variants of one LUT mod differ only in their pixels. Checked in the game 2026-10-06 with a visor-glow variant
+of the A-35 Recon and HAA's A-9 Helljumper edit. A part over 64 KB (an ID mask, a unit) enters the signature by its
+size alone, so every analysis that read from patches also records each patched resource (archive, name, type) with
+a checksum of all its parts (Adler-32, read in 64 KB pieces with a pause point after each); a cached analysis is
+checked against the files once per session before it is used and made again when any checksum differs (review
+2026-10-06: an equal-size ID mask replacement kept its stale analysis).
+
+**Transmog mods** (review 2026-10-06, KB match-your-colors-review-transmog-v13). A mod that rebuilds a kit record at
+runtime (a carrier item's record recomposed with another look's pieces, under the carrier's id) is followed: the
+job's catalogue reads a kit's record again on every lookup and replaces its entry when the record's signature (id,
+name, archive, type, and per piece its path, slot, type, body, LUT, pattern, tone and fields) changed; plans are kept
+under a checksum of those signatures; a respawn's units get the previous result only while the records read the same
+(`src/addon.lua` `records_same`), else a new job. A mod that binds its own textures on the units' materials at runtime
+is not fought: the mod binds only on materials that show a planned vanilla texture and never binds over another
+texture; such an item shows that mod's colors.
+
+**Glowing paint.** A paint row (mode 0) with an emissive intensity (column 13 x) keeps its colors like a lens or light
+(mode >= 2.5): the visor-glow mods turn a visor row (mode 3) into glowing paint (mode 0, a color, column 13 x 0.0035
+to 0.03). The game's own LUTs have 22 such rows, all small saturated lights (at most 2.7% of a kit: orange, red and
+teal strips, white LEDs); they no longer take a color, nor give theirs to the other item. Cloth rows (mode 1) use
+column 13 for other values. Offline: 1,621 of 42,660 plans change; 1,289 only by the target's lights staying, 332
+because the PH-56 Jaguar's, AC-1 Dutiful's and GS-66 Lawmaker's light strips no longer serve as accent colors.
 
 ## Local player only
 
@@ -182,12 +555,14 @@ pattern plans (6,180 of them change a pattern) and on the fitted colors of every
 | Avatar entity | entities `[+0x346BF98]`: map `+0xF22EC8` (unit -> entity), record `+0xF32F18 + 24e` (avatar resource, local bit) |
 | Unit arrays | avatars `[+0x3326D20]`: map `+248`, record `+5532272 + 440 * index`, units `+220` (armor), `+260` (undergarment), `+300` (accessory), by slot |
 | Body copies | `[+0x346D580]`: slot `+2080 + 2184s` whose peer is the player's, entries `+68 + 132n`, units at `+12` (gameplay copies: static research places their filling in death and disconnect code, not a UI preview) |
-| UI preview | UiPreviewSystem `[+0x347CE60]`: slot L = `u32 [player manager + 948 + 32 * index]`, record `+49160 + 160 * L`: units `+12/+52/+92` (the avatar layout), kits shown `+136` body, `+140` armor, `+144` helmet; occupied count and mask `+50440/+50444` (`src/preview.lua`) |
+| UI preview | UiPreviewSystem `[+0x347CE60]`: slot L = `u32 [player manager + 948 + 32 * index]`, record `+49160 + 160 * L`: units `+12/+52/+92` (the avatar layout), kits shown `+136` body, `+140` armor, `+144` helmet, `+148` cape; occupied count and mask `+50440/+50444` (`src/preview.lua`) |
 
-The helmet is slot 0 of the three arrays, the armor slots 1-9. A target unit's materials are rebound only when
+The helmet is slot 0 of the three arrays, the armor slots 1-9; the cape is on the armor array's slot 1 (the
+cape-mount unit), recolored only with Recolor Cape on. A target unit's materials are rebound only when
 their LUT is one the plan changes: the vanilla texture object comes from `ResourceManagerApi.get_by_id`
 (`get_engine_api(5)` +0x40, after `can_get_by_id` +0x30). Other players' units, body copies and UI preview slots
-are never touched.
+are never touched, except for Sync With Mod Users: other players who share their settings have their avatar's
+units recolored (their unit arrays, never their body copies or UI preview slots).
 
 The UI preview (the Armory's character view and the game's other UI previews of the local player) can show
 another pair than the one equipped (a hovered item): it is a second target with its own job, textures and
@@ -226,39 +601,51 @@ them); the pool keeps up to 32 free textures per size and destroys more.
 `src/cache.lua`: `MatchYourColors.cache` in the mod's log folder keeps the shared detail and camo tiler samples
 (512 texels per layer as bytes) and every analysed kit (rows and pattern areas as `%.17g` text, LUTs and pattern
 textures as raw float32), at most 64
-entries, most recently used first. The first line names the format version (5), the game build and the slim
-index (chunk count and size); an entry's key holds the kit id, body type, archive and a checksum of the kit's
-piece list. Anything unexpected discards the whole file (an older file is rebuilt once). The file is read on the
-first job of a session, pausing between entries. New analyses are written by a save job of its own: due 300 frames
+entries, most recently used first. The first line names the format version (7: an entry's line adds whether its
+geometry came from patches, its changed rows and its patched resources; V lines give each changed row's flag and
+archived color, D lines each patched resource's archive, name, type and checksum), the game build, the slim index
+(chunk count and size) and the installed mods' patch signature; an
+entry's key holds the kit id, body type, archive and a checksum of the kit's
+piece list (a cape's includes its scalar fields). Anything unexpected discards the whole file (an older file is rebuilt once). The file is read on the
+first job of a session in 128 KB pieces, pausing between them and between entries. New analyses are written by a save job of its own: due 300 frames
 after the last recolor job, it waits while the UI preview is shown, runs on frames without a recolor job with the
-same 1.5 ms budget, pausing between entries, and writes through a temporary file and a rename; a save still due at
-shutdown is written then. (v1.1 encoded and wrote the whole file, up to 1.4 MB, on the frame of a recolor.)
+same 1.5 ms budget, pausing between entries and between 128 KB pieces of the write, and writes through a temporary
+file and a rename (in a slice of its own); a save still due at shutdown is written then. (v1.1 encoded and wrote the whole file, up to 1.4 MB, on the frame of a recolor.)
 With it, a session's first recolor needs no game-file read, the color transfer included (v1.0 live: 2 frames,
 2.2 ms of work).
 
 ## Recolor check
 
-Every 30 frames the mod reads the LUT (or pattern) binding of one recolored material per runtime texture (two reads
-each, through pointer objects kept per address: no allocation). If the game has put that material's original back
-while the unit lives, the recolor is applied again and a line is logged. No such event was seen in testing.
+Every 30 frames the mod reads the LUT (or pattern) binding of one recolored material, one runtime texture per check in
+turn (two reads, through pointer objects kept per address: no allocation; v1.2 read one per texture on every check,
+up to about 24 reads on one frame). If the game has put that material's original back while the unit lives, the
+recolor is applied again and a line is logged. No such event was seen in testing. Dead units' bindings are dropped
+after a unit change (alive() once per unit), not on every 2-second check (v1.2: alive() per binding every 120
+frames).
 
 ## Per-frame cost
 
 | Frame | Calls | In game |
 | --- | --- | --- |
-| Idle, recolor applied | 1 `read_into` (120 bytes of unit refs); +1 with a preview slot; +1 while it has entries | unmeasured in game; about 1-2 us per read from the reference table |
-| Idle, UI preview not shown | +1 `read_into` (8 bytes) on 1 frame in 4 | unmeasured in game |
-| UI preview shown | +2 `read_into` per frame (8 bytes, 160 bytes); a change of its kits starts a job for that pair | unmeasured in game |
-| Every 30 frames | +2 `read_into` per runtime texture (1 for the helmet, up to 10 for armor, +1 per changed pattern; the UI preview's too while shown) | unmeasured in game |
+| Idle, recolor applied | 1 `read_into` (120 bytes of unit refs); +1 on odd frames with a body-copy slot (its count and entries in one read, 2,116 bytes; v1.2: every frame, +1 while it had entries) | unmeasured in game; about 1-2 us per read from the reference table |
+| Idle, UI preview not shown | +1 `read_into` (8 bytes) on 1 frame in 4 (`frame % 4 == 0`: never with the body-copy read) | unmeasured in game |
+| UI preview shown | +1 `read_into` per frame: its record and the occupied count and mask in one span (records 0-7 end where the count begins; 1,288 bytes for slot 0; v1.2: 2 reads); a change of its kits starts a job for that pair, new units of the same kits are rebound at once | unmeasured in game |
+| Every 30 frames | +2 `read_into`: one runtime texture's binding, each texture in turn (v1.2: 2 per texture, up to about 24); the UI preview's too while shown; moved to the next frame when the chain check runs | unmeasured in game |
 | No local Helldiver | 1 resolve (up to about 20 reads) every 15 frames, nothing between | unmeasured in game |
-| Every 120 frames | the local-player chain again (about 20 reads), `alive` per tracked binding | unmeasured in game |
-| Change | the chain, then a job: 1.5 ms of work per frame, ended at the first pause point after it (2 `QueryPerformanceCounter` per frame plus one per pause point) | job length and longest frame logged per job |
-| Apply | per target unit: engine calls to list materials, two reads per material; per changed LUT or pattern: `can_get_by_id`, `get_by_id`, `update_buffer` on a pooled texture; `set_resource` per material, `commit` per mesh | logged per apply; unmeasured in game (v1.1 made each texture: one frame of 7-15 ms per Armory preview recolor in real play) |
+| Every 120 frames | the local-player chain again (about 20 reads); `alive` only after a unit change, once per unit; the lobby poll and a cache save slice wait a frame | unmeasured in game |
+| Units changed, same kits and options (a respawn) | the chain, then the applied result bound to the new units at once (no job, no second resolve, no log line) | unmeasured in game |
+| Change | the chain, then a job: 1.5 ms of work per frame, ended at the first pause point after it (2 `QueryPerformanceCounter` per frame plus one per pause point; a pause point at least every 0.45 ms of work outside the game: inside each color fit, after building the matcher items and the plan, every 16 KB of LZ4 output); a game-data read still in flight yields the frame (`GetOverlappedResult`, no wait) | job length and longest frame logged per job; frames waited on the disk logged |
+| Apply | per target unit: engine calls to list materials, two reads per material; per changed LUT or pattern: `can_get_by_id`, `get_by_id`, `update_buffer` on a pooled texture; `set_resource` per material, `commit` per mesh. On the frame after the job's last slice when that slice used over half the budget | logged per apply; unmeasured in game (v1.1 made each texture: one frame of 7-15 ms per Armory preview recolor in real play) |
 | Pool growth | only when no free texture of the size: `create_buffer` + `lookup_resource` for it and two spares (waits for the render thread once) | about one frame, at the first recolors of a session |
-| Cache save | when due: the save job's 1.5 ms of work per frame, then one file write | logged per save; unmeasured in game |
+| Cache save | when due: the save job's 1.5 ms of work per frame, the file written in 128 KB pieces, the rename on its own (v1.2: one write of up to 1.4 MB, 3.6-4.9 ms frames in real play) | logged per save; unmeasured in game |
+| Lobby poll (every 120 frames; Sync With Mod Users is always on) | 7 `read_into` for the lobby; with sharing: `PFLobbyGetMembers`, per member 2 `read_into`, per other member `PFLobbyGetMemberProperty` + 1 `read_into`; when one shares, about 6 `read_into` per player record; a post only after a settled change | unmeasured in game; a poll allocates a few hundred bytes (`tests/test_idle_alloc.lua`) |
+| Another mod user recolored | +1 `read_into` (120 bytes) on 1 frame in 4 (round robin), +2 per texture of one of them every 30 frames, their jobs in the job slot | unmeasured in game |
+| First job of a session | the patch files listed (`FindFirstFileExW`, basic info, large fetch: 0.23 ms for 69 files outside the game, v1.3 before: 1.5 ms), 2 reads per patch file, the bytes of indexed parts up to 64 KB; the disk cache read in 128 KB pieces | unmeasured in game |
 
-Idle frames allocate nothing (`tests/test_idle_alloc.lua`, interpreter only). No `VirtualQuery`, no memory
-writes, no page-protection changes. Call counts per frame kind are pinned in `tests/test_addon.lua`.
+Idle frames allocate nothing (`tests/test_idle_alloc.lua`, interpreter only), nor do frames between lobby polls,
+nor with Recolor Cape on (its kit is compared only when the preview's kits change or a job ends). Recolor
+Cape adds no compiled code: the frame step's traces are the same with it on and off (`luajit -jv`, the test world). No `VirtualQuery`, no memory writes, no page-protection changes. Call counts per frame kind are pinned in
+`tests/test_addon.lua`, and the calls sync adds against a twin world without it in `tests/test_sync.lua`.
 
 Jobs, measured inside the game in harness sessions (30 FPS cap; these are not real-play frame costs): first
 analysis of a helmet and armor 85.6 ms of work over 50 frames, longest frame 2.1 ms, 207 file reads (12 MB, longest
