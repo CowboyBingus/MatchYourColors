@@ -213,11 +213,14 @@ TEST_PAIR = {'a5574ac2', '0ade6719'}  # tests/test_job.lua: CPR-80 Bulwark helme
 
 
 def transfer_cases(mapping, target):
-    """[{key, L, a, b, colors (8 x RGB), err, cal}] for every planned row, in key order."""
+    """[{key, L, a, b, colors (8 x RGB), err, cal}] for every planned row, in key order, fitted as the job does
+    (match12.fit_row: an accent band's coat, a missed response's model fit); cal: the plan's (the row measured)."""
     out = []
     cal = {r['key']: r['cal'] for r in target.rows}
-    for tk, (_, _, desired) in sorted(mapping.items(), key=lambda kv: f'{kv[0][0]}:{kv[0][1]}'):
-        row, _, err = match12.recolor_row(match.lut_data(tk[0])[tk[1]], desired, tk, cal[tk])
+    for tk, entry in sorted(mapping.items(), key=lambda kv: f'{kv[0][0]}:{kv[0][1]}'):
+        desired = entry[2]
+        row, _, err = match12.fit_row(match.lut_data(tk[0])[tk[1]], desired, tk, cal[tk],
+                                      coat=isinstance(entry, match12.BandEntry))
         colors = [float(row[c][ch]) for c in match11.COLOUR_COLUMNS for ch in range(3)]
         out.append({'key': f'{tk[0]}:{tk[1]}', 'L': float(desired[0]), 'a': float(desired[1]), 'b': float(desired[2]),
                     'colors': colors, 'err': float(err), 'cal': bool(cal[tk])})
@@ -247,7 +250,7 @@ def material_cases(mapping, target):
         _, src, desired = mapping[tk]
         rep = src['rep']
         row = match12.with_finish(match.lut_data(tk[0])[tk[1]], match.lut_data(fk[0])[fk[1]])
-        new, _, err = match12.recolor_row(row, desired, fk, rep['cal'])
+        new, _, err = match12.fit_row(row, desired, fk, rep['cal'], coat=isinstance(mapping[tk], match12.BandEntry))
         colors = [float(new[c][ch]) for c in match11.COLOUR_COLUMNS for ch in range(3)]
         out.append({'key': f'{tk[0]}:{tk[1]}', 'finish': f'{fk[0]}:{fk[1]}', 'L': float(desired[0]),
                     'a': float(desired[1]), 'b': float(desired[2]), 'colors': colors, 'err': float(err),
@@ -266,7 +269,6 @@ class CapeItem(match12.Item):
     """A cape as a matcher item: one piece of weight 1 whose material rows have the cape model's areas. Its rows fit
     through the response their cloth borrows (research/make_appearance.py cape_rows), a tint row through its material
     row's (lut: the cape's material LUT); looks stay the model's."""
-    borrowed = True
 
     def __init__(self, kit, lut):
         super().__init__(kit)
@@ -442,7 +444,7 @@ def main():
                 mapping = match12.plan(items[t], items[src])
                 key = f'{direction}{t}{src}'
                 plans[key] = zlib.adler32(plan_text(mapping).encode())
-                pplan = match12.plan_patterns(items[t], items[src])
+                pplan = match12.plan_patterns(items[t], items[src], mapping)
                 if pplan:
                     ptext = ';'.join(f'{h}={acc["rep"]["key"][0]}:{acc["rep"]["key"][1]}'
                                      for h, (acc, _) in sorted(pplan.items()))

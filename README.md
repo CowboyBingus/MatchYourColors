@@ -1,9 +1,9 @@
-# Match Your Colors v1.3
+# Match Your Colors v1.4
 
-Your helmet takes your armor's colors, or your armor takes your helmet's, or both take one of the game's weapon
-paint schemes; your cape can follow. Pick them in the MODS tab of the escape menu (Mod Options Menu): **Color
-Matching**: Off, Helmet Matches Armor (default) or Armor Matches Helmet; **Paint Scheme**: Off (default) or one of
-the 11 schemes. Four toggles beside them: **Leave Complete Sets**, **Recolor Hoods**, **Match Materials** and
+Your helmet takes your armor's colors, or your armor takes your helmet's, or both take your cape's or one of the
+game's weapon paint schemes; your cape can follow. Pick them in the MODS tab of the escape menu (Mod Options Menu):
+**Color Matching**: Off, Helmet Matches Armor (default), Armor Matches Helmet or Helmet and Armor Match Cape;
+**Paint Scheme**: Off (default) or one of the 12 schemes. Four toggles beside them: **Leave Complete Sets**, **Recolor Hoods**, **Match Materials** and
 **Recolor Cape**. Squadmates who use this mod see your colors and you theirs (**Sync With Mod Users**, always on,
 below).
 
@@ -23,7 +23,10 @@ both body types and from the front, both sides and the rear: the recolored part 
 the other item's color in every view, and independent reviews of all the renders found the looks they flagged fixed;
 mission lighting is not yet checked. Recolor Cape is tested offline on all 118 capes and was checked in the Armory on 23
 outfits from the front and behind (tints, emblems and marks kept readable, recolored emblem sheets), and an independent
-review of the renders cleared them; not yet played. See
+review of the renders cleared them. v1.4's Helmet and Armor Match Cape and SEAF scheme were checked on screen in
+test sessions over many rounds of random helmet, armor and cape combinations in the Armory and on the ship (every
+cape at least once, both body types, front, sides and rear, SEAF beside the game's SEAF troopers), with independent
+reviews of the renders, and played on the ship and in the Armory; not yet played in missions. See
 [docs/TECHNICAL.md](docs/TECHNICAL.md).
 
 ## What changes
@@ -32,13 +35,19 @@ review of the renders cleared them; not yet played. See
   armor's other colors in the same light/dark relation; a large area never takes a small trim color.
 - **Armor Matches Helmet:** the same the other way; dark undersuits stay dark, except on an armor that shows almost
   nothing but its suit (such as the O-3 Free Spirit), whose suit takes the helmet's colors.
+- **Helmet and Armor Match Cape:** both take the colors of the cape you wear (in the Armory, the cape you preview):
+  the main color of its outside goes to your main parts, its second and accent colors to plates, trims and accents,
+  and dark gloves, boots and straps stay dark. A cape of essentially one color repaints your gear's own colored parts
+  and stripes too. The cape keeps its own colors (Recolor Cape does nothing in this mode).
 - Only colors change: each item keeps its own material (metal, shine, fabric weave, wear, camo pattern), its decals
   and the shapes of its painted patterns, unless Match Materials is on. Visors, lenses, lights, glowing parts and
   skin keep their colors.
 - **Paint Scheme** (Off by default): paints helmet and armor in one of the game's weapon paint schemes: Helldiver,
-  Forest, Forest Camo, Arctic, Arctic Camo, Desert, Desert Camo, Urban, Urban Camo, Night or Venus. The scheme's
-  main paint goes where the item's main color is, its second paint and cloth color where they fit; the camo schemes
-  bring their camo. While a scheme is chosen, Color Matching and Leave Complete Sets do not apply; Recolor Hoods and
+  Forest, Forest Camo, Arctic, Arctic Camo, Desert, Desert Camo, Urban, Urban Camo, Night, Venus or SEAF. The
+  scheme's main paint goes where the item's main color is, its second paint and cloth color where they fit; the camo
+  schemes bring their camo. SEAF is the game's SEAF trooper colors, matched against SEAF troopers in the game: plates
+  and helmet shells slate blue, clothing grey, and vests, straps, pouches, padding, gloves, boots and colored visors
+  black or dark. While a scheme is chosen, Color Matching and Leave Complete Sets do not apply; Recolor Hoods and
   Match Materials do.
 - Accents such as stripes, colored trims and painted patterns take the other item's accent color, even small ones;
   a speck of accent (under 1% of the other item) recolors a bigger part only within its hue family. When it has no
@@ -68,6 +77,7 @@ review of the renders cleared them; not yet played. See
   them: the mod recolors from the modded colors and keeps a modded glowing visor glowing. A part whose finish (shine,
   metal) a mod changed, and an item whose shape a mod replaced, are matched by the model instead of the Armory
   measurement. Transmog mods that rebuild an item at runtime are followed: a rebuilt item gets its own recolor.
+  Modded LUTs, paint schemes included, can be in the game's half-float format or in 32-bit floats.
 
 ## Multiplayer
 
@@ -78,7 +88,8 @@ so players without this mod see your original colors.
 settings (Color Matching, Paint Scheme and the toggles; no colors, names or other data) are stored as a value of
 your squad's online lobby, and the mod reads the values of the squadmates who use it too and recolors their
 Helldivers on your screen with their settings, their capes too when they turned Recolor Cape on. Squadmates need
-this version (1.3) or newer; players without the mod see no change and are not recolored. It makes your use of the
+1.3 or newer; on 1.3 they see your gear in its own colors while you use Helmet and Armor Match Cape, and with your
+Color Matching instead of the SEAF scheme. Players without the mod see no change and are not recolored. It makes your use of the
 mod visible to anyone who reads the lobby's data. Squadmates are matched by their game account id (played between a
 host and a client); the log notes a squadmate who shares settings but whose Helldiver it cannot find.
 
@@ -103,12 +114,13 @@ when the game keeps a body-copy slot for you, two reads every 30 frames to check
 read every frame while it is), and every 2 seconds about 20 reads to check your Helldiver and equipment; it
 allocates nothing.
 When your equipment changes it works out the colors in the background, aiming at 1.5 ms of work per frame (with a
-pause point at least every 0.5 ms of work outside the game), and applies them in one frame, the next one when the
-work used most of its frame. A file read the disk does not answer at once lets the work wait a frame instead of
-holding the game's frame. A respawn binds the existing colors to the new units at once. It keeps its color textures and refills them for the next colors: making a texture
-makes the game wait for its renderer (about one frame), so new ones are made only when none of the size is free,
-at the first recolors of a session. It changes no game code, writes no game memory and never changes your
-equipment.
+pause point at least every 0.5 ms of work outside the game), and applies them in one frame of their own, the one
+after the work ends. A file read the disk does not answer at once lets the work wait a frame instead of holding the
+game's frame. A respawn binds the existing colors to the new units at once. It keeps its color textures and refills
+them for the next colors: making a texture makes the game wait for its renderer (about one frame), so the textures a
+session needs are made while the game loads (75 in under 4 ms, in a loading frame) and later only when none of the
+size is free. The game files it reads while you browse the Armory are closed a few at a time afterwards. It changes
+no game code, writes no game memory and never changes your equipment.
 
 Every 120 frames (Sync With Mod Users, always on) it reads the squad's lobby (7 memory reads, one PlayFab member list
 and one member value per squadmate, read from PlayFab's local copy of the lobby) while your Helldiver exists, and
@@ -118,7 +130,9 @@ memory read of their equipment slots runs on 1 frame in 4 and two reads per text
 reads nothing is allocated; a lobby read allocates a few hundred bytes. Unmeasured in game.
 
 The first job of a session lists the installed mods' patch files and reads their tables of contents (two reads per
-patch file) to find the textures, materials and units they replace.
+patch file) to find the textures, materials and units they replace. In later sessions an item that mods change is
+checked against only the bytes this mod read from their files, not the whole files (a modded mesh is never read), and
+a modded ID mask larger than the game's is read at a 512 x 512 mip.
 
 Recolor Cape adds no per-frame work of its own: the cape is among the equipment slots the mod reads anyway, and with
 the option on it is one to three more recolored textures (the cape's tint has one of its own, and a recolored emblem a
@@ -141,11 +155,17 @@ takes up to about 5 ms of work in the game's Lua engine outside the game.
 Measured in real play: v1.0 took 0.012 ms per frame in missions and 0.008 ms on the ship, with about 48 KB of
 compiled Lua code. A v1.1 build before the measured appearance took 0.025 ms per frame on the ship, and applying a
 recolor took one frame of 7 to 15 ms, once for each item you hover in the Armory. v1.2 refills kept textures
-instead: 0.008 ms per frame in missions and 0.013 ms on the ship, and a frame over 2 ms in 3.5% of seconds on the
-ship and in the Armory, at most 5.6 ms (that v1.1 build: 24-31%); applying a recolor takes 0.05-0.13 ms, or up to
-5 ms when it has to make new textures. The measurement table is read once at startup (about 1.5 ms outside the
+instead: 0.008 ms per frame in missions and 0.013 ms on the ship, and a frame over 2 ms in 5.8% of seconds on the
+ship and in the Armory (3.5% counting that launch's mission time too, which had none), at most 5.6 ms (that v1.1
+build: 24-31%); applying a recolor takes 0.05-0.13 ms, or up to 5 ms when it has to make new textures. The measurement table is read once at startup (about 1.5 ms outside the
 game, unmeasured in game). New analyses are written to the cache file a few seconds after the last recolor, while
 no preview is shown, spread over frames.
+
+v1.4 in 7 minutes of real play on the ship and in the Armory (Helmet and Armor Match Cape with SEAF): applying a
+recolor took 0.56-0.61 ms at the median and 1.33 ms at most, no texture was made during play, and one frame of its
+work went over 2 ms (2.3 ms, an Armory item's first analysis). In the same scripted test session as v1.3, no frame of
+its work went over 2 ms outside loading (v1.3: one of 2.2 ms) and applying took at most 1.5 ms (v1.3: 2.1 ms). Its
+per-frame cost in real play is not measured yet.
 
 ## Build and test
 
@@ -154,7 +174,7 @@ test: the Lua matcher and color transfer against the research pipeline on all 29
 plans and the fitted colors of 287 of them, the hooded helmets' 1,620 plans with their hoods kept and the 9,346 plans
 Match Materials changes, read from the installed game's files, and every cape's rows and its plans against six
 helmets and armors: 118 capes, 702 plans), the paint schemes, a synthetic LUT mod and the Cover of Darkness on the
-real game data, sync against a simulated PlayFab lobby, then builds `releases/Match-Your-Colors-v1.3.zip`.
+real game data, sync against a simulated PlayFab lobby, then builds `releases/Match-Your-Colors-v1.4.zip`.
 `--test` also builds the live test build (never publish it). `python -B scripts/make_fixtures.py --quality` judges the
 shipped planner and color fit on every pair (`research/quality.py`, results in `research/results/quality13.json`).
 

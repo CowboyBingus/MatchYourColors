@@ -1,3 +1,67 @@
+# v1.4
+
+- New: Color Matching has a fourth choice, Helmet and Armor Match Cape: your helmet and armor take the colors of the cape you wear (its cloth, lining and emblems), and the cape keeps its own; in the Armory they follow the cape you preview.
+- With Helmet and Armor Match Cape, dark gloves, boots and straps stay dark instead of taking a cape's light color.
+- With Helmet and Armor Match Cape, an armor or helmet of mostly one color, such as the B-01 Tactical, now shows the cape's colors by material: plates its main color, clothing and trims its second, gloves, straps and padding its darkest (the Thundering Hooves of Loyalty made the whole B-01 red).
+- New: a SEAF paint scheme in the game's own SEAF trooper colors, matched against SEAF troopers in the game: plates and helmet shells slate blue, clothing grey, and vests, straps, pouches, padding, gloves, boots and colored visors black or dark.
+- Camo patterns now turn into shades of their new color: a green camo matched to a yellow helmet or cape no longer shows lime or lavender patches, nor cyan or lilac ones with a blue color.
+- Squadmates on v1.3 see your gear in its own colors while you use Helmet and Armor Match Cape, and with your Color Matching instead of the SEAF scheme.
+- Your Helldiver is recolored the frame after it appears instead of 8-13 frames later: the analysis cache and the plan for the gear you wear are prepared while the game loads.
+- Items shown in the Armory for the first time are recolored about twice as fast (helmets about three times): the mod keeps its reader of the game's files open while you browse and keeps small pieces it already decoded, so far fewer file reads make it wait a frame.
+- The textures a recolor needs are now made while the game loads (75 in under 4 ms on a loading frame), so no recolor on the ship or in the Armory has to make one during play (v1.3 made 36 at five recolors in the same test session).
+- Lighter per frame: in the same scripted session on the ship and in the Armory, no frame of the mod's work went over 2 ms outside loading (v1.3: one of 2.2 ms), applying a recolor took at most 1.5 ms (v1.3: 2.1 ms), and browsing armors and helmets took about half the mod's time.
+- In 7 minutes of real play on the ship and in the Armory, applying a recolor took 0.56-0.61 ms at the median and 1.33 ms at most, and no texture was made during play; per-frame cost in real play is not measured yet.
+- A recolor's last step now has a frame of its own, a new look is bound straight over the old one instead of restoring the original textures first, and the game-file reader is closed a few files at a time instead of all on the frame of a recolor.
+- Switching back to a look you had before is quicker: its job takes about 0.1 ms instead of 0.3 ms, as the kit records are read in fewer reads and their checksums are kept.
+- Items and capes seen for the first time take less work, with exactly the same colors: color fitting does about 45% less work and a cape's analysis about 20% less.
+- Fixed: with a LUT mod that saves its colors as 32-bit float textures (such as a DP-11 recolor and some HD helmet LUTs), every recolor matching to or from its helmet or armor failed ("unsupported texture format 2"), as did paint schemes such a mod replaced; these textures are now read as they are.
+- Armor Matches Helmet with a bare-metal helmet such as the CPR-80 Bulwark no longer paints the armor a much lighter grey than the helmet looks: a part taking a metal's color is now as dark as the game's own matching sets paint it (the Bulwark's steel gives about L 29 instead of 39), less so for dark metals.
+- A part that is darker than the main part taking the same color now stays somewhat darker, so straps, undersuits and dark plates no longer all turn the same light color as the plates.
+- A helmet's bright stripe or trim color no longer paints large muted parts of the armor: the CPR-80 Bulwark's yellow stays on trims instead of turning the RS-40 Beast of Prey's leg camo or the DS-191 Scorpion's vest solid yellow.
+- Shirts, undersuits and gloves never take such a stripe color, whatever their size: the PH-202 Twigsnapper's t-shirt and the RS-40's gloves no longer turn yellow with the Bulwark.
+- A colored band or stripe that would turn black or grey now takes the other item's accent color: the IX-VOIDWALKER's navy band becomes red on the RE-1861 Parade Commander, lemon yellow on the B-01 Tactical and gold on the RE-2310 Honorary Guard, and a B-01 Tactical helmet's white stripe takes the yellow of the KDM-763 Pacesetter's light strips while its red turns black.
+- Such a band is now one even coat of the other item's own accent paint, so it reads as the same color: the IX-VOIDWALKER's band on the B-01 Tactical is the armor's lemon yellow instead of a pale butter yellow.
+- Smaller parts and printed stripes in a band's color take the band's new color too: a B-01 Tactical helmet's white dome stripes now turn yellow with its white jaw on the KDM-763 Pacesetter instead of staying white, while its silver badges stay metal.
+- Metal parts that darken keep their shine instead of turning pitch black: the B-22 Model Citizen's chrome knee, shin and forearm guards under a black cape become dark chrome, one even paint across all of them.
+- A part whose color the mod could only reach with an extreme paint no longer turns pale: the I-44 Salamander's metal plates under the Light of Eternal Liberty cape are its yellow instead of a pale cream.
+- Colors are matched as paint, with shine apart, the way the eye sees them: a glossy helmet no longer turns darker than the grey it matches (a white B-01 Tactical helmet on the CM-14 Physician now takes the armor's grey instead of a near-black).
+- A matte part no longer turns pale where it matches a glossy color: the SC-30 Trailblazer Scout's coat now takes the AF-50 Noxious Ranger mask's olive instead of a light grey.
+- Muted colors keep their hue: a softly tinted color is now fitted for its tint too, so the SC-30's olive coat no longer drifts to khaki under the Armory's warm light, without ever turning more saturated than asked.
+- Leather and cloth that show a warm or cool cast in the game now cancel it when they turn black or grey: the B-24 Enforcer's coat under a black cape is dark grey instead of rust brown.
+- Bare metal that turns dark now stays a dark steel instead of a black mirror: the CPR-80 Bulwark under a black cape no longer looks pure black beside its armor.
+- Cloth that turns a dark color deeper than its own sheen allows now keeps that color's hue: the UF-16 Inspector's red sleeve under a navy cape turns navy instead of purple.
+- A two-tone source now shows both its colors on armors of two tones too: under the Thundering Hooves of Loyalty the SR-64 Cinderblock turns red with gold plates instead of solid red.
+- With Helmet and Armor Match Cape, a cape of one main color and one bright color shows both on your armor: under a black cape with a red quarter the FS-37 Ravager gets red plates instead of turning all black.
+- With Helmet and Armor Match Cape, the cape's outside now decides your outfit's main color, not its lining: under a black cape with a grey lining your armor turns dark, not grey.
+- With Helmet and Armor Match Cape, a tinted color that shows only on a cape's lining no longer paints large parts: the EX-00 Prototype X's dome takes Standard of Safe Distance's sage panel instead of its tan lining.
+- With Helmet and Armor Match Cape, a cape of essentially one color now also repaints your helmet and armor's own colored parts, so the outfit reads as the cape: the I-92 Fire Fighter's orange turns dark under a dark grey cape.
+- With Helmet and Armor Match Cape, such a cape also repaints printed stripes and decals: the FS-23 Battle Master's yellow stripes turn the cape's grey.
+- With Helmet and Armor Match Cape, a cape's second main color now shows on an all-dark armor too: under a black and yellow cape the BP-32 Jackboot gets yellow panels instead of staying all black.
+- With Helmet and Armor Match Cape, undersuits take a cape color when the cape has no dark neutral color: the IE-3 Martyr's olive shirt and brown trousers turn the blue of Federation's Embrace.
+- A black or grey color no longer takes on a part's own colored sheen as paint: the FS-05 Marksman's red dome under a black cape turns dark grey instead of teal.
+- With Helmet and Armor Match Cape, a large brightly colored part no longer keeps its color just because the cape has a thin trim of a similar shade: the TR-7 Ambassador of the Brand's cyan plates turn black under a black cape with a thin navy hem.
+- A part's light grey details now darken with it when its paint turns much darker.
+- Light armor parts no longer take a helmet's small dark color when the armor's undersuit already has it: the SC-30 Trailblazer Scout's tan plates take the AF-50 Noxious Ranger's olive instead of black.
+- A light glossy part matched to a dark color now takes the matte finish and the charcoal shade of the dark part it matches, as the game's own dark paints have: the IX-VOIDWALKER's shell on the B-01 Tactical no longer shows its scuffs as grey-white marbled grime, and white helmets such as the CW-36 Winter Warrior no longer turn flat black.
+- Bare-metal armor plates matching a metal helmet are now as dark as matte parts matching it, so the PH-202 Twigsnapper's steel plates no longer look brighter than the Bulwark's steel.
+- Fixed: clothing on parts that also show skin was never recolored: the PH-9 Predator's and PH-56 Jaguar's camo shirts, the IE-57 Hell-Bent's vest and scarf, and the sleeves, collars and gloves of the RS-40 Beast of Prey, O-2 Heavy Operator and PH-202 Twigsnapper; they now match like the rest, and bare skin keeps its color.
+- Fixed: parts the game draws from a blank spot of their color mask were never recolored: the PH-56 Jaguar's shin wraps and the CM-21 Trench Paramedic's chest and shin pouches now match like the parts around them, as do small parts of the CPH-26 Commandant, CM-17 Butcher, CM-10 Clinician and CM-09 Bonesnapper.
+- Fixed: with another mod changing an armor's parts, helmet accents could turn pure green, a hidden placeholder color in the game's data; parts the game never shows no longer give colors, and modded gear keeps its measured paint looks.
+- With many mods installed, new items are recolored far sooner: the mod checks modded items against only the bytes it reads (never a modded mesh), reads only each mod's table of contents at the first recolor, and reads a large modded ID mask at a 512 x 512 mip.
+- The Armory preview never shows an item you already moved away from: the item shown is read again just before its colors are applied, and work for an item you left stops early.
+- New textures are made less often in the Armory: when some must be made, enough for the next item of the same kind are made in that same frame.
+- The first recolor of a session no longer has a 4-5 ms frame reading the analysis cache, and a cache save no longer has a 3-4 ms frame.
+- Less repeated work: a cape is not recomputed when only the other item changes, a paint scheme recomputes only the item that changed, and an emblem sheet still in use is not copied again.
+- A squadmate's respawn with the same gear is recolored at once without a new job, and squadmates waiting for a recolor take turns.
+- With Color Matching off and no paint scheme the mod reads one value per frame and does nothing on a respawn.
+- Setting an option to the value it already has starts no recolor; the log lists all options in one line at startup.
+- The Armory preview's animation alone no longer rebinds its colors.
+- Large modded pattern masks without mip levels and long runs in the game's compressed data no longer make a single long frame.
+- A pause or stop during a recolor no longer leaves game files open.
+- Recolor plans kept in a session are capped at 128, the least recently used dropped first.
+- The log names the texture and the mod's file when a texture cannot be read, and each recolor line gives the longest frame of its work.
+- The disk cache starts over once (format 12).
+
 # v1.3
 
 - An armor that shows almost nothing but its dark suit, such as the SC-34 Infiltrator, now gives helmets its dark color instead of turning their base white from a small light-grey trim; the same for 11 other suits such as the RE-1861 Parade Commander, CE-07 Demolition Specialist and DP-00 Tactical, so an RS-100 Sanctioner's hood no longer turns white or red on them.
