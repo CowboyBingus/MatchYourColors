@@ -745,7 +745,7 @@ and trims, maroon gloves, straps and padding). No cape worn (record 0) or no
 analysis (its LUT outside the archives searched): the items keep their colors (`no cape`). Leave Complete Sets does not
 apply (as with a scheme); a paint scheme still overrides the mode. A cape change counts in this mode as with Recolor
 Cape on (`cape_counts` in `src/addon.lua`: verify, the Armory preview's kits, kit changes, work ahead; a squadmate's
-in `src/remote.lua`). The analysis keeps its total weight (`weight`, cache format 12, the K line's 18th field). A
+in `src/remote.lua`). The analysis keeps its total weight (`weight`, cache format 12 and later, the K line's 18th field). A
 Match Materials finish from a tint row comes from its material row (`Recolor.apply_finish` through `tint_of`).
 Squadmates on v1.3 refuse mode 4 (their decoder takes modes 1-3) and see the gear as it is. Per frame: nothing added
 (the cape ids are in the reads made anyway; the frame step's traces in the test world are the same as with Helmet
@@ -952,6 +952,152 @@ to 0.03). The game's own LUTs have 22 such rows, all small saturated lights (at 
 teal strips, white LEDs); they no longer take a color, nor give theirs to the other item. Cloth rows (mode 1) use
 column 13 for other values. Offline: 1,621 of 42,660 plans change; 1,289 only by the target's lights staying, 332
 because the PH-56 Jaguar's, AC-1 Dutiful's and GS-66 Lawmaker's light strips no longer serve as accent colors.
+
+## v1.5: six user tickets (2026-10-14)
+
+Findings, measurements and the agreed outcomes this round changed: KB `match-your-colors-tickets-2026-10-14`. Offline
+only so far (both VMs, parity over all 42,660 plans); no render review or in-game run yet.
+
+**Match Materials under a cape** (`src/schemes.lua`). The cape role split (`Schemes.role_plan`, an item with one
+group of 80% or more under Helmet and Armor Match Cape) gave every hard row the source's finish whatever Match
+Materials said: the B-22 Model Citizen helmet's chrome turned matte cloth with the option off. It passes the option
+now (`has.materials`); SEAF, which calls it without options, keeps its painted hard rows.
+
+**Metal onto hard parts** (`src/matcher.lua` `metallized`). With Match Materials on, a hard (mode 0) paint row that is
+not clothing (under half undergarment), not structure and not a darker tone's share, taking a hard bare-metal LUT row
+of a helmet or armor, or a cape's metallic row of any mode (its cloth renders the metal: live 2026-10-14, the Eye of
+Liberty's gold went flat pale yellow with its metallic zeroed in a copy of its LUT), becomes that metal: the source
+row's finish and one coat of its paint
+(`rep.mL/ma/mb`) fitted through the model, with no metal shift and no paint floor (`src/transfer.lua` flat `'metal'`).
+Bands stay paint (`tint_bands` clears the coat).
+
+**A cape source's look** (`src/matcher.lua` `borrow_rows`, `seen_look`; `src/colour.lua` `goal_look`). A cape as the
+source aimed parts at its model colors; its rows now carry their look through the borrowed responses, and each group a
+goal look (gL, ga, gb; a neutral keeps its model hue). Decisions (identity, pairs, guards) keep the model colors; goals,
+the painted rows and the cape role split (at most CAPE_TONE_UP = 2 L lighter than the cape color, through each part's
+response) aim at the look. Over the 117 capes of the 2026-10-11 gallery the identity's look meets the cape's back on
+screen at a median +0.6 L; the default black capes' black is a look of L 22.7 for a model L 25.3. A light hard paint the
+cape's cloth turns dark takes roughness 0.67 (`Transfer.DARK_ROUGH`, the game's median dark hard paint). New paint
+floors (`paint_floor`): glossy hard paint (roughness under 0.5) L 20, cloth L 12, from the game's 1st percentiles (1,409
+and 2,192 rows); matte hard paint none.
+
+**No armor in one color** (`src/variety.lua`, `Matcher.balance`; Python `match12.balance`). At the end of every armor
+plan (not helmets, not capes): over the visible paint, the largest design color's share D and the share at CIE76 15 or
+more from it; dominated when D >= 0.85 and that share < 0.10 (checked before and after the prosthetic rule). The rows
+of the dominant color take roles: hard armor and coats keep it, clothing (soft undergarment) the secondary, other small
+soft armor and hard undergarment parts the dark, saturated small groups the accent; then the darkest main parts (up to
+25%) and a settle pass. Secondary: the source's largest muted palette color apart from main covering
+`SECOND_MIN_SHARE` (10%) of the source, `DARK_SECOND_SHARE` (5%) for a dark neutral (look L < 35, model chroma < 8: the
+CE-74 Breaker's 7.7% black keeps the SA-25's undersuit black), never a bare-metal row (the Cowboy Hat's silver badge
+gave the B-01 Tactical light grey clothing); without one the plan stays as made (independent review 1, 2026-10-14: a
+drab of the accent's hue read dusty pink from the PH-9 Predator's beret, olive from a lemon cape, and a 6.5% tan face
+mask dressed a whole coat; the user: "The before looks better ... This shaded hue seems to come from nowhere", and a
+secondary "needs 10% of the source"). Dark: its darkest muted color apart from main, else a tone; the armor's own
+accent only within CIEDE2000 8 of a source color. Prosthetic arms and legs (LUT 5789f549cead6c3d) take the
+source's darkest muted color under L 40 on every armor plan, else keep their own. An armor whose one row shows on more
+than 90% is left as planned, and so is an armor against a source without colors (it keeps its own, as in v1.4; the
+v1.4 analysis of the Cowboy Hat had no rows and its plan failed in `helmet_main`, review renders 2026-10-14). 7,165 of
+21,330 helmet-to-armor plans are dominated as matched (7,747 since the armor band floor below); the rule changes
+2,080 and 6,018 stay as made, their source having no second color of its own (research/scratch/v15/variety_scan.lua).
+
+**Cape designs drawn by lightness** (`src/zones.lua` `zone_choice`, `lost_tone`). A zone or emblem whose own
+lightness and its border's were at least `STRONG_GAP` (2 x ZONE_READ) apart takes no source color that reads against its
+border by hue alone (independent review 1, 2026-10-14: Proof of Faultless Virtue took the UF-50 Bloodhound's black on
+its red, the same lightness, and read plain red; the user chose "readable by lightness", knowing it turns the agreed
+red Judgment Day bands on the Bloodhound silver): it goes on to the smaller source colors by lightness (the
+Bloodhound's silver), its own colors, then, bordered mostly by cloth, a neutral tone 30 L from its planned border (its
+own light/dark order where that fits). Designs drawn by hue keep their pick (the Pillars of Freedom's bars, Fre
+Liberam's eagle).
+
+**A cape's metal second color** (`src/schemes.lua` `role_plan`, `metal_second`). Under the cape split (a near one-color
+item) with Match Materials, a cape whose second color is metal (the Eye of Liberty's gold, its LUT's metallic) gives
+it to the hard parts of the main's role as that metal, and its clothing (the second's role) takes the main: cloth never
+turns metal, and the gold went to clothing as a pale yellow paint while the plates kept the cape's black (review 1,
+cases 4 and 5; the user chose "hard parts gold metal"). The B-22 Model Citizen helmet under the Eye is gold chrome
+(metallic 1.0, roughness 0.10); with the option off it keeps its dark chrome. Under such a cape (`Schemes.metal_second`:
+14 of 117 capes, the Eye of Liberty, Federation's Embrace, Gilded Quill ...) with Match Materials every helmet and armor
+takes the split, not only the near one-color ones: the CPR-80 Bulwark helmet (steel 79%, under CAPE_SPLIT) kept the
+cape's black and its stripe a near-white gold beside the gilded FS-55 Devastator (independent review round 4).
+
+**Metal on a part that was paint** (`src/recolor.lua` `apply_finish`, `METAL_ON_PAINT_ROUGH`). A row that was paint
+(metallic under 0.5) taking a metal finish is at least 0.30 rough, the game's median hard bare-metal roughness (1,083
+rows by area: p25 and p50 0.30, p75 0.40; research/scratch/v15/metal_rough_survey.lua): the B-22 Model Citizen's mirror
+chrome (0.10, which the game keeps for parts made for it) on the FS-37 Ravager's quilted chest reflected the Armory's
+lights as a white blotch and sparkle (independent review round 3, case 1). A row that was metal keeps the source's
+roughness (the B-22 helmet's chrome under the Eye of Liberty).
+
+**Vivid colors of 10%** (`src/matcher.lua` `guard_part`, `VIVID_PART_SHARE`; match12 `vivid_minor_guard`). A vivid
+color covering 10% or more of a helmet or armor source is no minority for the vivid guard: it may take muted parts that
+are not undergarment cloth (the user's version comparisons 2026-10-15: the FS-05 Marksman's red, 27%, never reached the
+FS-37 Ravager's plates, and the I-92 Fire Fighter's orange, 22%, the B-22 Model Citizen's chrome; "the red failed to
+transfer"). Smaller ones stay guarded (the CPR-80 Bulwark's 9% yellow, the 2026-10-09 complaint), cape sources keep
+their own rules, undergarment cloth is guarded at any share.
+
+**Cloth and colored metal** (`src/matcher.lua` `cloth_off_metal`; match12 `cloth_off_metal`). Cloth (soft rows) paired
+with a colored bare-metal source color (look chroma TINT_C or more) takes the source's non-metal palette color nearest
+it in look lightness: cloth never turns metal, and gold's paint on it read as a flat mustard that barely shows on the
+source (the B-24 Enforcer's coat, 46% of it, from the BP-77 Grand Juror's gold; the user's comparisons, case 15). The
+two rules change 1,076 of 42,660 plans (492 the cloth rule).
+
+**An armor's band** (`src/matcher.lua` `band_hue_source`). An armor's accent band (a colored hard part paired with a
+neutral, tint_bands) takes a source color only when it covers `BAND_ARMOR_MIN_SHARE` (10%) of the source, and never a
+light: the RS-100 Sanctioner's 2.8% gold painted the O-44 Bonded Pilot's red-brown plates (25% of it) light gold since
+v1.4, where v1.3 made them black (Reddit report, 2026-10-14). A helmet's band keeps the agreed rule (the IX-VOIDWALKER's
+navy band takes the RE-1861 Parade Commander's 5% dark red). Plans with a band: 4,237 to 2,603 of 42,660
+(research/scratch/v15/band_scan.lua).
+
+**Decal sheet pool** (`src/engine.lua`). Free sheet copies are keyed by size, mips and bytes (`Engine.pool_key`), so a
+mod's sheet with another mip chain never refills one; a refilled texture keeps the data it replaced referenced until it
+is given back (`texture.previous`). Every sheet made or refilled leaves a log line with the Adler-32 of its recipe and
+of 64 blocks of its bytes; apply lines count "N new, M refilled textures". Live 2026-10-14: refilled sheets drew
+their design as a newly made one in the Armory's close-up (Proof of Faultless Virtue with the FS-38 Eradicator,
+refilled over another recipe); the far mips of a refilled BC3 texture are not checked.
+
+**Modded gear without a color table** (`src/albedo.lua`; user report: the Cowboy Hat mod). A mod's material (from a
+patch) of the character template `7712ee7808e0ec50` with no material LUT and a BC1 or BC3 albedo of power-of-two size
+(slot `0xac652e43`; its mra `0x756f6fa6`) is read: the first mip no larger than 256 x 256, its opaque texels binned
+(4-4-4 sRGB and a metal bit from the mra's red, linear sums) and clustered (farthest-point seeds at least 6 apart, up to
+8 Lloyd steps, up to 8 clusters, clusters under 0.5% merged). Each cluster is a paint row of the analysis (key
+`<albedo>:<cluster>`, its share of the piece, metal over half its texels) whose color is the cluster as it looks: the
+texture color through `Albedo.RESPONSE`, the median response of the 2026-10 screen study (gain 0.714/0.671/0.640,
+gloss 0.0060/0.0067/0.0073 per linear channel; the hat's crown is predicted at L 31.9, seen at L 30.2, against L 36.7 as
+a raw texture color, which gave the B-01 Tactical a pale khaki). A goal goes back through the same response
+(`Albedo.unlook`) before it moves the texture. A plan's goals move the texture's endpoints:
+each distinct RGB565 endpoint is mapped once, weighted by its closeness to the clusters (Gaussian, 4 CIELAB units), by
+each cluster's lightness change (a ratio when it darkens, a difference when it lightens) and its hue offset scaled with
+the chroma change (none toward a neutral goal); every block of every mip takes the mapped endpoints, a BC1 block's in
+the order that keeps its mode (4-color indices xor 0x55555555, 3-color indices 0<->1 only, so transparency is exact;
+two equal endpoints of a 4-color block give index 0). The normal and mra maps stay. Endpoints are mapped by color
+alone, so two clusters of one color move together. The copy is bound on the material's albedo slot (engine format
+`0x10000000`, BC1; live 2026-10-14: an unchanged copy renders as the mod's own texture, and all 4 of the hat's
+materials hold the mod's texture on that slot, so binding there replaces it), pooled apart (`albedo:bc1|bc3:WxH:bytes`, one
+free kept, no spares). A material of that kind the mod cannot read is noted in the analysis and logged; analyses with
+an albedo or such a note are not cached. The cache format is 13: v1.4 (format 12) kept its analysis of a kit with
+such a material, without its colors, and v1.5 reused it, so the hat stayed as it was (review renders 2026-10-14);
+every v1.4 analysis is made again once. Tests: `tests/test_units.lua` (decode, rewrite under any endpoint map,
+clustering, the job's specs), `tests/test_job.lua` (a synthetic patch of the CPR-80 Bulwark helmet's units with such a
+material, both directions, a BC7 albedo logged), `tests/test_addon.lua` (binding, pool, the apply frame's calls).
+
+**Materials not ready at an apply** (`src/recolor.lua` controller `pending`, `settle`; live 2026-10-14). In the
+Armory, an armor changed under the same cape gives the preview a new cape unit whose LUT slots hold a placeholder until
+the game sets the kit's LUT a few frames later; a plan applied before that (a kept plan applies within 2 frames) bound
+nothing there and nothing bound it later, so the cape kept its own colors (an emblem sheet bound without the cloth's LUT
+would read as a garbled design). An apply now remembers the target units without materials and the target slots that
+hold a texture neither the plan's original nor its own, and reads those alone again on every 4th frame for 2 s: each is
+bound once it holds a texture the plan changes (logged: "Preview: N textures bound late"). A slot on a LUT the plan
+does not change waits out the 2 s unlogged. Per frame: nothing while none waits; a try frame 2 reads and an alive check
+per waiting material (a unit without materials: its units read, alive check and the plan's texture lookups); the
+frames between as idle. Live: the cape bound 6 textures late on both kept-plan steps. The emblem-sheet copies moved to
+`src/sheets.lua` (attached to Recolor) to keep `src/recolor.lua` under 1,000 code lines.
+
+**Recolor Squadmates** (`src/addon.lua`, `src/remote.lua`; Off, Squadmates Without the Mod, Everyone). Not shared:
+the `cbmyc` value's flags stay under 16 so v1.4 squadmates keep reading it. `remote.update(frame, members, mine,
+everyone)`: Squadmates Without the Mod gives a member its own readable settings, else this player's; Everyone this
+player's for all; this player's own recoloring off leaves squadmates as they are. Changing the option starts no local
+job and re-polls on the next frame; local option changes re-job only the entries that take this player's settings. A
+squadmate without a Helldiver (dead) keeps the entry (absent) and is rebound on respawn without a job; a failed value
+read keeps the entry. Per frame with one such squadmate (`tests/test_sync.lua`): the poll every 120 frames 27 memory
+reads (13 with the option off), one read on 1 frame in 4, two every 30; no memory-protection checks.
 
 ## Local player only
 

@@ -1,3 +1,27 @@
+# v1.5
+
+- New option, Recolor Squadmates: Squadmates Without the Mod recolors squadmates who don't use this mod with your settings, on your screen only; Everyone does it for every squadmate. Off by default.
+- Match Materials now also works the other way: a hard painted part that takes a helmet's or armor's bare metal becomes that metal, so the B-22 Model Citizen's chrome and the AD-26 Bleeding Edge's cobalt show as chrome and cobalt on the other item, not as matte paint. Cloth never turns into metal, and a part that was paint is no smoother than the game's usual metal: mirror chrome stays on the parts made for it.
+- With Helmet and Armor Match Cape and Match Materials, a cape's metallic color carries its metal too: under the Eye of Liberty your helmet's and armor's hard parts turn gold metal and the clothing takes the cape's black, instead of pale yellow cloth.
+- With Helmet and Armor Match Cape and Match Materials off, a mostly one-color helmet or armor keeps its metal: the B-22 Model Citizen helmet's chrome under the Eye of Liberty is now a dark chrome instead of matte cloth.
+- With Helmet and Armor Match Cape, your gear now matches the cape as it looks in the game, not its lighter base color: under the default black capes such as Foesmasher the armor is black, not grey.
+- A light glossy part that a cape's cloth turns dark takes a matte finish, as the game's own dark paints have, instead of shining grey.
+- Glossy parts and cloth are never painted darker than the game's own darkest paints of their kind: a part that cannot get darker under its own shine no longer turns a pitch-black paint.
+- An armor that would turn one color takes the helmet's (or cape's) second color on its clothing, a dark color on its straps and pouches and the accent on its trims, all from the helmet's or cape's own colors: the SA-25 Steel Trooper no longer turns one solid color, its undersuit takes the helmet's dark. A helmet or cape without a second color of its own (one covering a tenth of it, or a twentieth for black or dark grey) leaves the armor as before, rather than a made-up shade.
+- An armor's clothing never takes a helmet's or cape's bare metal as its second color: the B-01 Tactical with the Cowboy Hat takes the hat's dark brown leather, not the silver of its badge.
+- Prosthetic arms and legs (SA-12 Servo-Assisted, SA-25 Steel Trooper, SA-32 Dynamo) take the helmet's or cape's dark color, or keep their own, and never the plates' color.
+- A squadmate's colors stay ready while they are dead: when they respawn in the same gear they are recolored at once, without a new recolor.
+- Modded helmets and armor whose colors are painted into their texture instead of the game's color table, such as the Cowboy Hat mod, now give their colors and take yours: the mod reads up to 8 colors from that texture as they look in the game and recolors a copy of it, keeping its shading, grain and metal.
+- The first time you play after the update, the mod reads your gear's colors from the game's files once more instead of using what v1.4 saved, so a modded hat it could not read before is read now.
+- A modded material without a color table that the mod cannot read (another texture format) is now named in the log with the reason, instead of being left out silently.
+- A cape design drawn light on dark (or dark on light) keeps a light-and-dark contrast on its new colors: Proof of Faultless Virtue on the UF-50 Bloodhound shows a silver design on red instead of a dark red one, and the Judgment Day's bands turn silver there too. When none of your colors does, it takes a light or dark grey of its new background: Proof of Faultless Virtue and Botslayer keep their designs with the FS-38 Eradicator's olive.
+- Cape designs: a recolored decal sheet is only reused for a sheet of the same layout, and the data it held stays in memory until the game is done with it. The log now says for each cape design whether it was made or reused, to track down reports of garbled designs.
+- The log's recolor lines now count reused textures too ("N new, M refilled textures").
+- A helmet's or armor's vivid color that covers a tenth of it or more now reaches the other item's parts: the FS-05 Marksman's red shows on the FS-37 Ravager's plates and the I-92 Fire Fighter's orange on the B-22 Model Citizen's chrome. Smaller specks of color stay accents, and clothing never takes them.
+- Clothing never takes the flat paint of a colored metal such as gold: it takes the other item's nearest plain color, so the BP-77 Grand Juror's gold no longer turns the B-24 Enforcer's coat mustard.
+- Fixed since v1.4: a large colored part of an armor no longer takes a small accent of the helmet or cape: with the RS-100 Sanctioner the O-44 Bonded Pilot's red-brown plates are black again and its gold ropes gold, instead of light gold plates.
+- Fixed: in the Armory, a cape could keep its own colors, or show only part of its new colors, when you changed the armor or helmet under the same cape; it is now recolored as soon as the game has finished setting it up.
+
 # v1.4
 
 - New: Color Matching has a fourth choice, Helmet and Armor Match Cape: your helmet and armor take the colors of the cape you wear (its cloth, lining and emblems), and the cape keeps its own; in the Armory they follow the cape you preview.

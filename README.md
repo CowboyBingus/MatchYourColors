@@ -1,11 +1,11 @@
-# Match Your Colors v1.4
+# Match Your Colors v1.5
 
 Your helmet takes your armor's colors, or your armor takes your helmet's, or both take your cape's or one of the
 game's weapon paint schemes; your cape can follow. Pick them in the MODS tab of the escape menu (Mod Options Menu):
 **Color Matching**: Off, Helmet Matches Armor (default), Armor Matches Helmet or Helmet and Armor Match Cape;
 **Paint Scheme**: Off (default) or one of the 12 schemes. Four toggles beside them: **Leave Complete Sets**, **Recolor Hoods**, **Match Materials** and
-**Recolor Cape**. Squadmates who use this mod see your colors and you theirs (**Sync With Mod Users**, always on,
-below).
+**Recolor Cape**; and **Recolor Squadmates**: Off (default), Squadmates Without the Mod or Everyone. Squadmates who
+use this mod see your colors and you theirs (**Sync With Mod Users**, always on, below).
 
 The colors come from the game's own files while you play: for every helmet and armor the mod reads its paint,
 wear, metal and camo rows and works out which paint of one fits which paint of the other. It also ships a
@@ -26,8 +26,11 @@ outfits from the front and behind (tints, emblems and marks kept readable, recol
 review of the renders cleared them. v1.4's Helmet and Armor Match Cape and SEAF scheme were checked on screen in
 test sessions over many rounds of random helmet, armor and cape combinations in the Armory and on the ship (every
 cape at least once, both body types, front, sides and rear, SEAF beside the game's SEAF troopers), with independent
-reviews of the renders, and played on the ship and in the Armory; not yet played in missions. See
-[docs/TECHNICAL.md](docs/TECHNICAL.md).
+reviews of the renders, and played on the ship and in the Armory; not yet played in missions. v1.5's color rules
+were checked on screen in the Armory and on the ship over six rounds of renders (front, sides and rear) with
+independent reviews and a comparison with v1.3 and v1.4 on 20 problem armors, the Cowboy Hat mod was recolored in the
+game, and a test session ran on the ship and in one solo mission; Recolor Squadmates is tested offline only (a
+simulated squad lobby). See [docs/TECHNICAL.md](docs/TECHNICAL.md).
 
 ## What changes
 
@@ -35,6 +38,9 @@ reviews of the renders, and played on the ship and in the Armory; not yet played
   armor's other colors in the same light/dark relation; a large area never takes a small trim color.
 - **Armor Matches Helmet:** the same the other way; dark undersuits stay dark, except on an armor that shows almost
   nothing but its suit (such as the O-3 Free Spirit), whose suit takes the helmet's colors.
+- Either way, a vivid color covering a tenth of the other item or more (the FS-05 Marksman's red) reaches plates and
+  other parts; smaller specks stay accents, and clothing never takes them. Clothing never takes a colored metal's flat
+  paint (gold reads as mustard on cloth): it takes the other item's nearest plain color.
 - **Helmet and Armor Match Cape:** both take the colors of the cape you wear (in the Armory, the cape you preview):
   the main color of its outside goes to your main parts, its second and accent colors to plates, trims and accents,
   and dark gloves, boots and straps stay dark. A cape of essentially one color repaints your gear's own colored parts
@@ -61,13 +67,27 @@ reviews of the renders, and played on the ship and in the Armory; not yet played
 - **Match Materials** (off by default): turned on, a bare-metal part that takes a painted color becomes that paint
   (the paint's metal, shine and gloss), so a chrome, steel or gold helmet with a white or green armor turns white or
   green instead of bronze or gold. It changes metal parts of at least 5% of the item and metal accents; bolts, rims
-  and other small metal details, cloth and painted parts keep their material, and nothing is turned into metal.
+  and other small metal details keep their material. The other way, a hard painted part that takes a helmet's or
+  armor's bare metal becomes that metal: the B-22 Model Citizen's chrome and the AD-26 Bleeding Edge's cobalt show as
+  chrome and cobalt on the other item, no smoother than the game's usual metal (mirror chrome stays on parts made for
+  it). Cloth, undersuits and the darker parts that only share a color never turn into metal. A cape's metallic color carries its metal the same way: under the Eye of Liberty your hard parts turn gold
+  metal and your clothing takes the cape's black. A large colored part of an armor takes only a color covering a tenth
+  of the helmet or cape (the O-44 Bonded Pilot's red-brown plates stay the RS-100 Sanctioner's black, not its small
+  gold).
+- An armor that would turn one color takes the other item's (or the cape's) second color on its clothing, a dark
+  color on its straps, pouches and gloves and the accent on its trims, all from the other item's own colors. A second
+  color must cover a tenth of that item (a twentieth for black or dark grey); without one the armor stays as matched,
+  never a made-up shade. Prosthetic arms and legs (SA-12, SA-25, SA-32) take a dark color of the other item or keep
+  their own.
 - **Recolor Cape** (off by default): turned on, your cape takes the colors your recolored item takes: the armor's
   with Helmet Matches Armor, the helmet's with Armor Matches Helmet, the scheme's with a Paint Scheme. Its outside,
   stripes, sashes, lining and tinted bands (such as United in Equality's purple) are matched like a helmet's parts, so
   a red lining such as the Cover of Darkness's takes one of those colors too. Emblems and marks stay readable: one that
   would blend into the cloth around it takes the color that stands out most (by its lightness, or by its color when
-  your colors are equally dark, as the UF-50 Bloodhound's red and black); an emblem printed from the cape's emblem
+  your colors are equally dark, as the UF-50 Bloodhound's red and black). A design drawn light on dark (or dark on
+  light) keeps that contrast: on the Bloodhound it takes its silver, not a red as dark as the cloth; when none of your
+  colors keeps it visible it takes a light or dark grey of its new background (Proof of Faultless Virtue and Botslayer
+  with the FS-38 Eradicator's olive). An emblem printed from the cape's emblem
   sheet (such as the Drape of Glory's) takes it in a copy of that sheet, the rest of the sheet as it is. The cape keeps
   its design's shapes and its cloth, which takes your colors as they show in the game, its sheen counted. A complete
   set that Leave Complete Sets keeps as it is still gives its colors to the cape.
@@ -78,6 +98,10 @@ reviews of the renders, and played on the ship and in the Armory; not yet played
   metal) a mod changed, and an item whose shape a mod replaced, are matched by the model instead of the Armory
   measurement. Transmog mods that rebuild an item at runtime are followed: a rebuilt item gets its own recolor.
   Modded LUTs, paint schemes included, can be in the game's half-float format or in 32-bit floats.
+- Modded helmets and armor whose colors are painted into their texture instead of the game's color table (such as
+  the Cowboy Hat mod) give their colors and take yours: the mod reads up to 8 colors from that texture (BC1 or BC3)
+  as they look in the game and recolors a copy of it, keeping its shading, grain and metal. Parts of the same color change together. Such a
+  material the mod cannot read (another texture format) keeps its look, and the log names it and why.
 
 ## Multiplayer
 
@@ -93,6 +117,12 @@ Color Matching instead of the SEAF scheme. Players without the mod see no change
 mod visible to anyone who reads the lobby's data. Squadmates are matched by their game account id (played between a
 host and a client); the log notes a squadmate who shares settings but whose Helldiver it cannot find.
 
+**Recolor Squadmates** (Off by default) recolors squadmates on your screen only, with your own settings:
+**Squadmates Without the Mod** does it for squadmates who do not share settings (players without this mod, or with
+a version before 1.3), while those who share keep theirs; **Everyone** does it for every squadmate. Nobody else sees
+it, and it is not shared with the lobby. A squadmate who dies keeps their colors ready for when they respawn in the
+same gear. Not yet played with a real squad.
+
 ## Requirements and install
 
 - Helldivers 2 Steam build **25480438** (EXE 1.8.46015.0). The mod checks the game.dll and EXE hashes and every
@@ -100,7 +130,7 @@ host and a client); the log notes a squadmate who shares settings but whose Hell
 - [Bingus Shared Loader v18 or newer](https://github.com/CowboyBingus/BingusSharedLoader/releases/latest).
 - Optional: [Mod Options Menu](https://github.com/CowboyBingus/ModOptionsMenu/releases/latest) for the settings.
   Without it the defaults apply (Helmet Matches Armor, no paint scheme, complete sets unchanged, hoods recolored,
-  materials kept, cape unchanged).
+  materials kept, cape unchanged, squadmates unchanged).
 
 Import the release ZIP into Arsenal or HD2MM together with the loader, enable and deploy both, then restart the
 game. Keep the shared loader as the winning Wwise startup replacement. The log is
@@ -128,6 +158,20 @@ posts your settings only when they change (once per lobby, five seconds after th
 stayed joined for ten seconds). While a squadmate's Helldiver is recolored, one
 memory read of their equipment slots runs on 1 frame in 4 and two reads per texture every 30 frames. Between lobby
 reads nothing is allocated; a lobby read allocates a few hundred bytes. Unmeasured in game.
+
+Recolor Squadmates adds nothing while it is Off. On, a squadmate it recolors costs what a sharing squadmate does: the
+lobby read every 120 frames also finds their Helldiver (27 memory reads in all with one such squadmate, 13 without),
+then one memory read on 1 frame in 4 and two every 30 frames. Their recolor runs as a squadmate's job does. It makes
+no memory-protection checks on any frame. Unmeasured in game.
+
+A modded helmet or armor without a color table (v1.5) adds no per-frame work. The first time a session sees it, the
+mod reads one 256 x 256 level of its texture and groups its colors (about 2 ms of work outside the game for the
+Cowboy Hat's kind of texture, up to 19 ms for a texture of random colors); a new look rewrites a copy of the whole
+texture (about 1.4 ms outside the game for a 2048 x 2048 texture, up to 77 ms), with a pause point at least every
+0.9 ms outside the game. The copy is one more texture of its size to make or refill (2.8 MB for 2048 x 2048, with up
+to one free copy kept), and the analysis is read again each session (not cached). In the game, making the Cowboy
+Hat's copy took 4.3 to 7.8 ms on the frame it was applied in the Armory (2026-10-14); a later look refills a free copy
+instead, and those applies took 0.1 to 0.5 ms (four looks). The reading and rewriting work is unmeasured in game.
 
 The first job of a session lists the installed mods' patch files and reads their tables of contents (two reads per
 patch file) to find the textures, materials and units they replace. In later sessions an item that mods change is
@@ -174,7 +218,7 @@ test: the Lua matcher and color transfer against the research pipeline on all 29
 plans and the fitted colors of 287 of them, the hooded helmets' 1,620 plans with their hoods kept and the 9,346 plans
 Match Materials changes, read from the installed game's files, and every cape's rows and its plans against six
 helmets and armors: 118 capes, 702 plans), the paint schemes, a synthetic LUT mod and the Cover of Darkness on the
-real game data, sync against a simulated PlayFab lobby, then builds `releases/Match-Your-Colors-v1.4.zip`.
+real game data, sync against a simulated PlayFab lobby, then builds `releases/Match-Your-Colors-v1.5.zip`.
 `--test` also builds the live test build (never publish it). `python -B scripts/make_fixtures.py --quality` judges the
 shipped planner and color fit on every pair (`research/quality.py`, results in `research/results/quality13.json`).
 

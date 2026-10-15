@@ -250,11 +250,13 @@ def material_cases(mapping, target):
         _, src, desired = mapping[tk]
         rep = src['rep']
         row = match12.with_finish(match.lut_data(tk[0])[tk[1]], match.lut_data(fk[0])[fk[1]])
-        new, _, err = match12.fit_row(row, desired, fk, rep['cal'], coat=isinstance(mapping[tk], match12.BandEntry))
+        metal = isinstance(mapping[tk], match12.MetalEntry)  # a row turned into metal (v1.5): one coat, no response
+        new, _, err = match12.fit_row(row, desired, fk, rep['cal'],
+                                      coat='metal' if metal else isinstance(mapping[tk], match12.BandEntry))
         colors = [float(new[c][ch]) for c in match11.COLOUR_COLUMNS for ch in range(3)]
         out.append({'key': f'{tk[0]}:{tk[1]}', 'finish': f'{fk[0]}:{fk[1]}', 'L': float(desired[0]),
                     'a': float(desired[1]), 'b': float(desired[2]), 'colors': colors, 'err': float(err),
-                    'cal': bool(rep['cal'])})
+                    'cal': bool(rep['cal']) and not metal})
     return out
 
 
