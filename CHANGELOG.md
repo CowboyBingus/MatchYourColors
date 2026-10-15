@@ -25,6 +25,8 @@
 - Clothing never takes the flat paint of a colored metal such as gold: it takes the other item's nearest plain color, so the BP-77 Grand Juror's gold no longer turns the B-24 Enforcer's coat mustard.
 - Fixed since v1.4: a large colored part of an armor no longer takes a small accent of the helmet or cape: with the RS-100 Sanctioner the O-44 Bonded Pilot's red-brown plates are black again and its gold ropes gold, instead of light gold plates.
 - Fixed: brown leather, tan and khaki parts took a helmet's or armor's accent color as a main color: with the PH-9 Predator the CPG-48 SAPPER's gloves, boots and waist panel turned bright red; they now take its olive, and only the shoulder pads its red.
+- Fixed: an armor could stay one solid color when a band of its plates took the helmet's main color: the CE-35 Trench Engineer turned the SA-04 Combat Technician all orange; its plates now keep the orange and its suit takes the helmet's dark grey.
+- A helmet's lighter minor color no longer covers most of an armor's clothing: with the FS-23 Battle Master the DP-00 Tactical's coat keeps the helmet's grey instead of its light grey.
 - Fixed: in the Armory, a cape could keep its own colors, or show only part of its new colors, when you changed the armor or helmet under the same cape; it is now recolored as soon as the game has finished setting it up.
 
 # v1.4

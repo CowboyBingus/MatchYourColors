@@ -1051,6 +1051,22 @@ SAPPER's gloves, boots and waist panel (16%, chroma 27, hue 74) took the PH-9 Pr
 guarding every colored part took the CM-14 Physician's green trims (hue 164-169) away from the red too. 38 plans
 change, among them the CW-4 Arctic Ranger's leather losing the CPR-80 Bulwark's 9% yellow.
 
+**One color, counted as it shows** (`src/variety.lua` `Variety.dominance`, `Variety.kept_patterns`, `roles_of`;
+`src/matcher.lua` `tint_bands` `m.shows`; match12 `variety_dominance`, `_v_kept_patterns`, `balance`). The CE-35
+Trench Engineer turned the SA-04 Combat Technician solid orange (user 2026-10-15, "still bugged ... sorely stuck
+out"): its 68% group took the orange and its 15% band the helmet's accent, the same orange, while paired with its grey,
+and the armor's own pattern (15%) took the orange too, so no source color reached DOMINANT_SHARE. A band's row now
+counts as the source color whose paint it shows, and the shares are of the paint the cells cover plus the patterns the
+plan keeps in their own color that read apart from the dominant color (the I-09 Heatseeker's own black pattern, 22.5%,
+keeps it apart from the CW-36 Winter Warrior's white: the user found its published look better than a balanced one).
+Counting every cell within APART as the dominant color was tried and dropped: it balanced 680 more plans and split two
+greys of one helmet by an invented near-white (the SC-15 Drone Master from the SR-64 Cinderblock; the user: "clearly
+being dominated by a non-dominant color"). When the source's secondary is lighter than its main color, the clothing
+keeps the main color instead if that brings the armor's main, second and dark shares closer to the source's (the
+FS-23 Battle Master's 20% light grey on the DP-00 Tactical's coat, 64% of it); a darker secondary keeps the clothing,
+as dark undersuits do (the SA-25 Steel Trooper under the TR-40 Gold Eagle, passed by the user). 524 of 42,660 plans
+change (28 by the band count, the rest by the light secondary).
+
 **Cloth and colored metal** (`src/matcher.lua` `cloth_off_metal`; match12 `cloth_off_metal`). Cloth (soft rows) paired
 with a colored bare-metal source color (look chroma TINT_C or more) takes the source's non-metal palette color nearest
 it in look lightness: cloth never turns metal, and gold's paint on it read as a flat mustard that barely shows on the
