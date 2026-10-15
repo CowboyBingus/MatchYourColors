@@ -1,5 +1,10 @@
 # v1.5
 
+- New option, Recolor Weapons (Off by default): your primary, sidearm and support weapon take your colors the way the game's weapon paint schemes repaint a weapon, body, details and trims, attachments and magazines included. The colors are the ones your helmet and armor take (the armor's, the helmet's or the cape's), with a camo when those colors include one.
+- With one of the game's weapon paint schemes picked as Paint Scheme and Recolor Weapons on, your weapons wear that scheme exactly as the game paints it.
+- In the Armory, the weapon you look at and the WEAPON CUSTOMIZATION preview show your weapon colors too.
+- Squadmates who use the mod with Recolor Weapons on see each other's weapons in their colors.
+- Sync With Mod Users now shares the settings in a form new options can extend without a new lobby value; squadmates on v1.3 and v1.4 still see your helmet, armor and cape settings.
 - New option, Recolor Squadmates: Squadmates Without the Mod recolors squadmates who don't use this mod with your settings, on your screen only; Everyone does it for every squadmate. Off by default.
 - Match Materials now also works the other way: a hard painted part that takes a helmet's or armor's bare metal becomes that metal, so the B-22 Model Citizen's chrome and the AD-26 Bleeding Edge's cobalt show as chrome and cobalt on the other item, not as matte paint. Cloth never turns into metal, and a part that was paint is no smoother than the game's usual metal: mirror chrome stays on the parts made for it.
 - With Helmet and Armor Match Cape and Match Materials, a cape's metallic color carries its metal too: under the Eye of Liberty your helmet's and armor's hard parts turn gold metal and the clothing takes the cape's black, instead of pale yellow cloth.

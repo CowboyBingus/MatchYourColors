@@ -27,9 +27,11 @@
   "src/engine.lua",
   "src/files.lua",
   "src/kits.lua",
+  "src/loadout.lua",
   "src/matcher.lua",
   "src/zones.lua",
   "src/sheets.lua",
+  "src/bindings.lua",
   "src/variety.lua",
   "src/albedo.lua",
   "src/patches.lua",
@@ -41,6 +43,8 @@
   "src/sync.lua",
   "src/texture.lua",
   "src/transfer.lua",
+  "src/weapon_data.lua",
+  "src/weapons.lua",
   "tests/compile_entry.lua",
   "tests/fake_game.lua",
   "tests/fixtures/capes.lua",
@@ -69,5 +73,6 @@
   "tests/test_parity.lua",
   "tests/test_patches.lua",
   "tests/test_sync.lua",
-  "tests/test_units.lua"
+  "tests/test_units.lua",
+  "tests/test_weapons.lua"
 ]

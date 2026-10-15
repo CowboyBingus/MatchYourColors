@@ -3,8 +3,8 @@
 Your helmet takes your armor's colors, or your armor takes your helmet's, or both take your cape's or one of the
 game's weapon paint schemes; your cape can follow. Pick them in the MODS tab of the escape menu (Mod Options Menu):
 **Color Matching**: Off, Helmet Matches Armor (default), Armor Matches Helmet or Helmet and Armor Match Cape;
-**Paint Scheme**: Off (default) or one of the 12 schemes. Four toggles beside them: **Leave Complete Sets**, **Recolor Hoods**, **Match Materials** and
-**Recolor Cape**; and **Recolor Squadmates**: Off (default), Squadmates Without the Mod or Everyone. Squadmates who
+**Paint Scheme**: Off (default) or one of the 12 schemes. Five toggles beside them: **Leave Complete Sets**, **Recolor Hoods**, **Match Materials**,
+**Recolor Cape** and **Recolor Weapons**; and **Recolor Squadmates**: Off (default), Squadmates Without the Mod or Everyone. Squadmates who
 use this mod see your colors and you theirs (**Sync With Mod Users**, always on, below).
 
 The colors come from the game's own files while you play: for every helmet and armor the mod reads its paint,
@@ -92,6 +92,12 @@ simulated squad lobby). See [docs/TECHNICAL.md](docs/TECHNICAL.md).
   sheet (such as the Drape of Glory's) takes it in a copy of that sheet, the rest of the sheet as it is. The cape keeps
   its design's shapes and its cloth, which takes your colors as they show in the game, its sheen counted. A complete
   set that Leave Complete Sets keeps as it is still gives its colors to the cape.
+- **Recolor Weapons** (off by default): turned on, your primary, sidearm and support weapon take your colors the way
+  the game's weapon paint schemes repaint a weapon: body, details and trims, attachments and magazines, in the colors
+  your helmet and armor take (the armor's, the helmet's or the cape's); when those colors include a camo, the weapon
+  takes it too. The steel the game's schemes keep stays steel, and lenses and lights keep their colors. With one of the game's weapon paint schemes as Paint Scheme, your weapons wear that scheme as the game
+  paints it. In the Armory, the weapon you look at and the WEAPON CUSTOMIZATION preview follow; a reload, respawn or
+  new mission keeps the colors. Grenades and backpacks keep theirs.
 - Your own Helldiver changes in the ship, in missions, and in the game's UI previews of your Helldiver such as the
   Armory's character view, including an item you hover there. The Armory's thumbnails keep their original colors.
 - Helmets and armors changed by other mods (LUT edits: recolored helmets, glowing visors) are read as the game shows
@@ -112,9 +118,11 @@ so players without this mod see your original colors.
 **Sync With Mod Users** (always on; no option) lets players who use this mod see each other's colors: your
 settings (Color Matching, Paint Scheme and the toggles; no colors, names or other data) are stored as a value of
 your squad's online lobby, and the mod reads the values of the squadmates who use it too and recolors their
-Helldivers on your screen with their settings, their capes too when they turned Recolor Cape on. Squadmates need
-1.3 or newer; on 1.3 they see your gear in its own colors while you use Helmet and Armor Match Cape, and with your
-Color Matching instead of the SEAF scheme. Players without the mod see no change and are not recolored. It makes your use of the
+Helldivers on your screen with their settings, their capes too when they turned Recolor Cape on, and their weapons
+when they turned Recolor Weapons on (both of you need 1.5 or newer for weapons). Squadmates need 1.3 or newer; on
+1.3 they see your gear in its own colors while you use Helmet and Armor Match Cape, and with your Color Matching
+instead of the SEAF scheme. From 1.5 the settings are stored in a form later options can extend without a new lobby
+value; the 1.3-1.4 form is stored beside it for older copies. Players without the mod see no change and are not recolored. It makes your use of the
 mod visible to anyone who reads the lobby's data. Squadmates are matched by their game account id (played between a
 host and a client); the log notes a squadmate who shares settings but whose Helldiver it cannot find.
 
@@ -131,7 +139,7 @@ same gear. Not yet played with a real squad.
 - [Bingus Shared Loader v18 or newer](https://github.com/CowboyBingus/BingusSharedLoader/releases/latest).
 - Optional: [Mod Options Menu](https://github.com/CowboyBingus/ModOptionsMenu/releases/latest) for the settings.
   Without it the defaults apply (Helmet Matches Armor, no paint scheme, complete sets unchanged, hoods recolored,
-  materials kept, cape unchanged, squadmates unchanged).
+  materials kept, cape unchanged, squadmates unchanged, weapons unchanged).
 
 Import the release ZIP into Arsenal or HD2MM together with the loader, enable and deploy both, then restart the
 game. Keep the shared loader as the winning Wwise startup replacement. The log is
@@ -159,6 +167,14 @@ posts your settings only when they change (once per lobby, five seconds after th
 stayed joined for ten seconds). While a squadmate's Helldiver is recolored, one
 memory read of their equipment slots runs on 1 frame in 4 and two reads per texture every 30 frames. Between lobby
 reads nothing is allocated; a lobby read allocates a few hundred bytes. Unmeasured in game.
+
+Recolor Weapons adds nothing while it is Off. On, it reads your weapon slots (48 bytes) on 1 frame in 4, and while a
+recolored weapon is in your hands one 8-byte read every frame of its color texture's slot: the game puts the
+weapon's own colors back on every reload, and the mod binds its colors again on the next frame. A reload, respawn,
+new mission or pickup of a weapon already recolored binds the existing colors again (about 15 reads per weapon); new
+weapons or paint work out their colors in the background like an item's. In the Armory its preview check shares the
+UI preview's read (16 bytes instead of 8). A squadmate who shares Recolor Weapons adds two reads on their turn of
+the squadmate check. It allocates nothing on frames without a change. Unmeasured in game.
 
 Recolor Squadmates adds nothing while it is Off. On, a squadmate it recolors costs what a sharing squadmate does: the
 lobby read every 120 frames also finds their Helldiver (27 memory reads in all with one such squadmate, 13 without),
