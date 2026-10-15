@@ -34,6 +34,7 @@
   "src/bindings.lua",
   "src/variety.lua",
   "src/albedo.lua",
+  "src/lineup.lua",
   "src/patches.lua",
   "src/preview.lua",
   "src/recolor.lua",

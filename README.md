@@ -130,7 +130,8 @@ host and a client); the log notes a squadmate who shares settings but whose Hell
 **Squadmates Without the Mod** does it for squadmates who do not share settings (players without this mod, or with
 a version before 1.3), while those who share keep theirs; **Everyone** does it for every squadmate. Nobody else sees
 it, and it is not shared with the lobby. A squadmate who dies keeps their colors ready for when they respawn in the
-same gear. Not yet played with a real squad.
+same gear. The squad cards of the loadout screen show each player's Helldiver in the colors you see them in during
+the mission. Not yet played with a real squad.
 
 ## Requirements and install
 

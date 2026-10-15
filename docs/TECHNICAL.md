@@ -1134,6 +1134,28 @@ squadmate without a Helldiver (dead) keeps the entry (absent) and is rebound on 
 read keeps the entry. Per frame with one such squadmate (`tests/test_sync.lua`): the poll every 120 frames 27 memory
 reads (13 with the option off), one read on 1 frame in 4, two every 30; no memory-protection checks.
 
+**Squad cards** (`src/lineup.lua`, `src/preview.lua`; user 2026-10-15: "The squad preview window is broken. None of the
+squad matching appears there"; KB match-your-colors-squad-cards). The loadout screen's cards are UiPreviewSystem player
+slots 0-3, each placed by its player's session slot and dressed in the player's desired kits (game.dll card widget
+`0x18a17d0`): the network context `[game + 0x347CEF0]` lists the session's peers (count `+0x16390`, 32-byte entries
+from `+0x16398`: peer `+0`, UI slot `+20`) and the local peer (`+0xB398`); the customization record's desired kits
+are `+2684 + 64 r` (`+4` helmet, `+8` cape, `+12` armor). Until this fix the preview watched only the Armory's slot
+(`u32 [pm + 948]`) and took it for the player's own: after a join a squadmate's card sat there and took this player's
+options, while the player's own card and the others kept their colors. The watch now reads slots 0-3 in its one read
+(slot 0's record to the weapon ring, 1,296 bytes, as before for slot 0) and reports each slot. When a slot shows,
+changes or goes, `Lineup.owners` reads the session (3 reads) and, when a slot listed for another peer is shown, the
+desired kits of the players not owned here (`Avatar.others_desired`, 9 reads with one squadmate): a slot of the local
+peer is the player's own preview (the addon's path moves there), a slot of another peer that shows a squadmate's
+desired kits is that peer's card, another shown slot is the player's own when it is the Armory's, else nobody's (left
+as it is). The player manager's peer ids (`+712 + 56 i`) are not used here: game.dll `0x6054f0` sets one once, when
+the player is added, from its connection, and 0 when that is not known yet. A card takes its player's settings from the last lobby poll (`remote.wanted`: their own, or this player's
+with Recolor Squadmates; a failed read keeps what it had); none: its own colors. Each card has a controller; its job
+runs after the local Helldiver's and the local preview's, new units with the same kits and settings are bound at once,
+a card that changes during its job is planned again, a card that goes is restored, and one card's bindings are checked
+per binding check. Per frame (`tests/test_sync.lua`): nothing more while the cards are settled but 2 reads on each
+binding check per card shown; 9 reads more on the frame a squadmate's card appears; no memory-protection checks.
+Known limit: with this player's own recoloring off the preview is not watched, so the cards keep their colors.
+
 ## Recolor Weapons (v1.5)
 
 User, 2026-10-15: weapon color matching "using the same algorithms that already exist for armor/helmet/capes", in

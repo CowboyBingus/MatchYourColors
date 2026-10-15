@@ -25,4 +25,5 @@
 - Fixed: brown leather, tan and khaki parts took a helmet's or armor's accent color as a main color: with the PH-9 Predator the CPG-48 SAPPER's gloves, boots and waist panel turned bright red; they now take its olive, and only the shoulder pads its red.
 - Fixed: an armor could stay one solid color when a band of its plates took the helmet's main color: the CE-35 Trench Engineer turned the SA-04 Combat Technician all orange; its plates now keep the orange and its suit takes the helmet's dark grey.
 - A helmet's lighter minor color no longer covers most of an armor's clothing: with the FS-23 Battle Master the DP-00 Tactical's coat keeps the helmet's grey instead of its light grey.
+- Fixed: on the loadout screen's squad cards, your Helldiver now shows your colors and each squadmate's shows theirs (or yours with Recolor Squadmates); before, a squadmate's card could take your colors while yours kept its own.
 - Fixed: in the Armory, a cape could keep its own colors, or show only part of its new colors, when you changed the armor or helmet under the same cape; it is now recolored as soon as the game has finished setting it up.
