@@ -1031,7 +1031,18 @@ color covering 10% or more of a helmet or armor source is no minority for the vi
 are not undergarment cloth (the user's version comparisons 2026-10-15: the FS-05 Marksman's red, 27%, never reached the
 FS-37 Ravager's plates, and the I-92 Fire Fighter's orange, 22%, the B-22 Model Citizen's chrome; "the red failed to
 transfer"). Smaller ones stay guarded (the CPR-80 Bulwark's 9% yellow, the 2026-10-09 complaint), cape sources keep
-their own rules, undergarment cloth is guarded at any share.
+their own rules, undergarment cloth is guarded at any share. A vivid color covering more of the source than its
+identity is guarded too: the identity passed it over (helmet_main), and the PH-9 Predator's red beret (42% over its
+olive's 29%) turned the I-44 Salamander red on 43% of its paint (user 2026-10-15, comparison 19: "places red on almost
+everything as a dominant color"; 85 armor plans, from the PH-9 and a dark red B-01 Tactical variant).
+
+**Earth tones** (`src/matcher.lua` `earth_tone`, `EARTH_HUE_MIN`/`EARTH_HUE_MAX`; match12 `earth_tone`). A part of
+PAINT_SHARE or more whose model color is an earth tone that is not vivid (chroma ACCENT_C to ACCENT_VIVID, hue 45 to
+110 degrees: brown leather, tan, khaki, olive drab) is guarded like a muted part: a material, no accent. The CPG-48
+SAPPER's gloves, boots and waist panel (16%, chroma 27, hue 74) took the PH-9 Predator's beret red as a main color
+(user 2026-10-15: "the boots and gloves aren't even accented"). Colored parts of other hues stay the item's accents:
+guarding every colored part took the CM-14 Physician's green trims (hue 164-169) away from the red too. 38 plans
+change, among them the CW-4 Arctic Ranger's leather losing the CPR-80 Bulwark's 9% yellow.
 
 **Cloth and colored metal** (`src/matcher.lua` `cloth_off_metal`; match12 `cloth_off_metal`). Cloth (soft rows) paired
 with a colored bare-metal source color (look chroma TINT_C or more) takes the source's non-metal palette color nearest

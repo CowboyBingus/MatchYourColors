@@ -38,8 +38,9 @@ simulated squad lobby). See [docs/TECHNICAL.md](docs/TECHNICAL.md).
   armor's other colors in the same light/dark relation; a large area never takes a small trim color.
 - **Armor Matches Helmet:** the same the other way; dark undersuits stay dark, except on an armor that shows almost
   nothing but its suit (such as the O-3 Free Spirit), whose suit takes the helmet's colors.
-- Either way, a vivid color covering a tenth of the other item or more (the FS-05 Marksman's red) reaches plates and
-  other parts; smaller specks stay accents, and clothing never takes them. Clothing never takes a colored metal's flat
+- Either way, a vivid color covering a tenth of the other item or more, but less of it than that item's main color
+  (the FS-05 Marksman's red), reaches plates and other parts; other vivid colors (the PH-9 Predator's red beret) stay
+  accents, and clothing and brown leather, tan or khaki parts never take them. Clothing never takes a colored metal's flat
   paint (gold reads as mustard on cloth): it takes the other item's nearest plain color.
 - **Helmet and Armor Match Cape:** both take the colors of the cape you wear (in the Armory, the cape you preview):
   the main color of its outside goes to your main parts, its second and accent colors to plates, trims and accents,
