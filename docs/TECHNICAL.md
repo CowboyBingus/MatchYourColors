@@ -1131,8 +1131,33 @@ everyone)`: Squadmates Without the Mod gives a member its own readable settings,
 player's for all; this player's own recoloring off leaves squadmates as they are. Changing the option starts no local
 job and re-polls on the next frame; local option changes re-job only the entries that take this player's settings. A
 squadmate without a Helldiver (dead) keeps the entry (absent) and is rebound on respawn without a job; a failed value
-read keeps the entry. Per frame with one such squadmate (`tests/test_sync.lua`): the poll every 120 frames 27 memory
+read keeps the entry. Per frame with one such squadmate (`tests/test_sync.lua`): the poll every 120 frames 23 memory
 reads (13 with the option off), one read on 1 frame in 4, two every 30; no memory-protection checks.
+
+**Every player of the squad** (fix after the user's first real squads, 2026-10-15/16: "other players recolored 0
+times"). The player manager's entity records (`+232`, count `+132`) hold only this machine's players; a squad's other
+players are only in its map from entity id to index (`+208`: data, capacity 8 in the game, empty key; entries
+`{entity, index}`; live dump 2026-10-16). `Avatar.player_entries` reads the map (one read in the game) and marks the
+entities of the records as local; `Avatar.players`, `Avatar.others_desired` and the log's player list use it (until
+this fix every version from 1.3 looked only at the records, so no squadmate was ever found). A player's peer id there
+(`+712 + 56 i`) is set once, when the player is added (game.dll `0x6054f0`), from its connection, and is 0 while that is
+not known yet: a player here whom no member names (`'player <entity>'`) takes `remote.unknown`, this player's settings
+when Recolor Squadmates gives them to everyone or no other member shares any (a member whose value could not be read
+counts as sharing), else none; a member whose read fails keeps its player.
+
+**Squadmates' Colors** (`src/options.lua`, `src/addon.lua` `squad_settings`, `src/remote.lua` `request_of`,
+`src/recolor.lua` `kit_source_of`; user 2026-10-16: "make their color scheme match the players' as well", the earlier
+behavior kept as a distinct choice). Their Own Gear (default): the squadmates Recolor Squadmates recolors take this
+player's options on their own pair, as before. Your Colors: this player's settings carry the mode's source item of this
+player's kits, `source_kit` (the armor for Helmet Matches Armor, the helmet for Armor Matches Helmet) or `source_cape`
+(Helmet and Armor Match Cape), rebuilt when the Helldiver is adopted (other kits); a paint scheme carries neither. A
+squadmate's (and squad card's) request carries them; the job plans both of their items against the source kit
+(`both_job`, key `kitsrc:<id>:<records>`, as the cape source does), their cape (Recolor Cape) and weapons from it too,
+complete sets not kept; with `source_cape` the request's cape is this player's, so their items match it and their cape
+keeps its colors. A source kit the catalogue lacks leaves their colors (`no source kit`). Not shared with the lobby.
+No per-frame cost: the option and this player's kits change the settings table, which the next lobby poll hands to the
+squadmates; a squadmate's job then plans two items instead of one. The Mod Options Menu registration moved from
+`src/addon.lua` (at the lint's 1,000 code lines) to `src/options.lua` (`Options.attach(Addon)`).
 
 **Squad cards** (`src/lineup.lua`, `src/preview.lua`; user 2026-10-15: "The squad preview window is broken. None of the
 squad matching appears there"; KB match-your-colors-squad-cards). The loadout screen's cards are UiPreviewSystem player
@@ -1144,12 +1169,15 @@ are `+2684 + 64 r` (`+4` helmet, `+8` cape, `+12` armor). Until this fix the pre
 options, while the player's own card and the others kept their colors. The watch now reads slots 0-3 in its one read
 (slot 0's record to the weapon ring, 1,296 bytes, as before for slot 0) and reports each slot. When a slot shows,
 changes or goes, `Lineup.owners` reads the session (3 reads) and, when a slot listed for another peer is shown, the
-desired kits of the players not owned here (`Avatar.others_desired`, 9 reads with one squadmate): a slot of the local
-peer is the player's own preview (the addon's path moves there), a slot of another peer that shows a squadmate's
-desired kits is that peer's card, another shown slot is the player's own when it is the Armory's, else nobody's (left
-as it is). The player manager's peer ids (`+712 + 56 i`) are not used here: game.dll `0x6054f0` sets one once, when
-the player is added, from its connection, and 0 when that is not known yet. A card takes its player's settings from the last lobby poll (`remote.wanted`: their own, or this player's
-with Recolor Squadmates; a failed read keeps what it had); none: its own colors. Each card has a controller; its job
+desired kits of the players not owned here (`Avatar.others_desired`): a slot of another peer that shows a squadmate's
+desired kits is that peer's card; the player's own preview (the addon's path moves there) is then the shown slot that
+shows the player's own desired kits (the session's slot of the local peer first, then the Armory's), else the
+session's slot of the local peer, else the Armory's; with more than one slot shown, every other shown slot is a
+squadmate's card whose player is not known (`'squad'`). The player's kits decide first because on joining a mission in
+progress the session can still list only the local peer, in slot 0, where a squadmate's card is (the user's second
+squad, 2026-10-16: "Still doesn't work."). The player manager's peer ids (`+712 + 56 i`) are not used here. A card
+takes its player's settings from the last lobby poll (`remote.wanted`: their own, or this player's with Recolor
+Squadmates; a failed read keeps what it had; an unknown squadmate's card `remote.unknown`); none: its own colors. Each card has a controller; its job
 runs after the local Helldiver's and the local preview's, new units with the same kits and settings are bound at once,
 a card that changes during its job is planned again, a card that goes is restored, and one card's bindings are checked
 per binding check. Per frame (`tests/test_sync.lua`): nothing more while the cards are settled but 2 reads on each

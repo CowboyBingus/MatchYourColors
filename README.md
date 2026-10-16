@@ -4,8 +4,9 @@ Your helmet takes your armor's colors, or your armor takes your helmet's, or bot
 game's weapon paint schemes; your cape can follow. Pick them in the MODS tab of the escape menu (Mod Options Menu):
 **Color Matching**: Off, Helmet Matches Armor (default), Armor Matches Helmet or Helmet and Armor Match Cape;
 **Paint Scheme**: Off (default) or one of the 12 schemes. Five toggles beside them: **Leave Complete Sets**, **Recolor Hoods**, **Match Materials**,
-**Recolor Cape** and **Recolor Weapons**; and **Recolor Squadmates**: Off (default), Squadmates Without the Mod or Everyone. Squadmates who
-use this mod see your colors and you theirs (**Sync With Mod Users**, always on, below).
+**Recolor Cape** and **Recolor Weapons**; **Recolor Squadmates**: Off (default), Squadmates Without the Mod or Everyone; and
+**Squadmates' Colors**: Their Own Gear (default) or Your Colors. Squadmates who use this mod see your colors and you
+theirs (**Sync With Mod Users**, always on, below).
 
 The colors come from the game's own files while you play: for every helmet and armor the mod reads its paint,
 wear, metal and camo rows and works out which paint of one fits which paint of the other. It also ships a
@@ -131,7 +132,14 @@ host and a client); the log notes a squadmate who shares settings but whose Hell
 a version before 1.3), while those who share keep theirs; **Everyone** does it for every squadmate. Nobody else sees
 it, and it is not shared with the lobby. A squadmate who dies keeps their colors ready for when they respawn in the
 same gear. The squad cards of the loadout screen show each player's Helldiver in the colors you see them in during
-the mission. Not yet played with a real squad.
+the mission.
+
+**Squadmates' Colors** decides which colors those squadmates take. **Their Own Gear** (default) applies your Color
+Matching to their own gear: with Armor Matches Helmet their armor takes their own helmet's colors, so a squadmate in a
+matching set barely changes. **Your Colors** gives their helmet and armor your colors: those of the item your Color
+Matching matches (your armor with Helmet Matches Armor, your helmet with Armor Matches Helmet, your cape with Helmet
+and Armor Match Cape), so the squad matches you; their cape (with Recolor Cape) and weapons (with Recolor Weapons) take
+them too. With a Paint Scheme every squadmate takes the scheme either way.
 
 ## Requirements and install
 
