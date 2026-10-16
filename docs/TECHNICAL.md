@@ -1159,6 +1159,35 @@ No per-frame cost: the option and this player's kits change the settings table, 
 squadmates; a squadmate's job then plans two items instead of one. The Mod Options Menu registration moved from
 `src/addon.lua` (at the lint's 1,000 code lines) to `src/options.lua` (`Options.attach(Addon)`).
 
+**Hide Cape** (`src/cloak.lua`; user 2026-10-16: "a toggle for users to hide their capes", then "include the option to
+hide everyone's cape as well"; KB match-your-colors-hide-cape). A cape is hidden through the engine's own
+`set_unit_visibility`: the script Unit C API's `+1624` (EXE `0x205680`, checked at startup like every other engine
+function) appends a command (unit, visible, children, every view context) to the unit's world queue, which the world
+runs in its update through the unit's own method; each of the cape's meshes then reads 0 in its visibility mask
+(`mesh + 0xDC`, 0xFF while shown; live on the ship 2026-10-16: hidden at once, still hidden 10 s later, shown again by
+the reverse call). Only the game's Lua bindings call it, never its native code. The cape's unit is slot 1 of an
+avatar's three arrays of unit refs. Off (default), Your Cape or Everyone's Capes; Your Cape and Everyone's Capes set
+flag 32 of the shared value (`cape_hidden`; copies before it ignore unknown bits), so a squadmate's Match Your Colors
+hides their cape on its screen whatever its own choice. This player's cape is hidden when the Helldiver is adopted and
+on the frames the unit watch reports a change (its refs from the watch's own copy, no read); a Helldiver not found for
+a moment keeps its cape hidden (no flash). Other players' capes (Everyone's Capes, or members whose value carries the
+flag): on the frame after a lobby poll, only when one is to be hidden or other players' are, the players are read and
+each new Helldiver resolved once; then one of them has its 120 unit bytes read on 1 frame in 4 (frame % 4 == 2, apart
+from the squad recolor's watch). The hellpod: the game hides a new mission Helldiver's units 3 frames after it makes
+them and shows them all again at the pod's exit (live 2026-10-16 with no mod but the loader: the helmet's and cape's
+masks 0xFF -> 0 -> 0xFF, 1,245 frames apart at about 150 FPS; a ship spawn stays shown), which shows a hidden cape too.
+So a new cape is young: its helmet's mask (the helmet's first mesh, kept with the cape) is read every frame for this
+player (a second check on those frames only) and on the watch turn for another player, for `Cloak.GRACE_FRAMES` (60);
+while the game hides the helmet (in the pod) the cape stays young, up to `Cloak.POD_FRAMES` (20,000) after the hide;
+when the helmet shows again the cape is hidden again that frame (the log names how many frames after the hide).
+Afterwards one hidden cape's mask is read on the binding check (round robin). Off, a pause or a stop shows what was
+hidden; Helldivers on the ship and in missions only (the Armory and the squad cards keep their capes, so a cape can be
+picked). Cost: for this player's cape nothing extra on idle frames but one 1-byte read every CHECK_FRAMES frames, plus
+one read per frame for 60 frames after each new cape and through a hellpod drop; with other players' capes hidden, one
+read on 1 frame in 4 (two while their cape is young) and the players (10 reads for two) after each poll; two engine
+calls per new cape (the visibility command and its first mesh); 0 `writable_data`; every function interpreted. No
+recolor job.
+
 **Squad cards** (`src/lineup.lua`, `src/preview.lua`; user 2026-10-15: "The squad preview window is broken. None of the
 squad matching appears there"; KB match-your-colors-squad-cards). The loadout screen's cards are UiPreviewSystem player
 slots 0-3, each placed by its player's session slot and dressed in the player's desired kits (game.dll card widget
@@ -1251,7 +1280,15 @@ plan is bound again on the next frame (one frame of stock colors). A reload, res
 weapon rebinds without a job; other weapons or paint run a job (plans kept per weapon and source).
 
 **Squadmates** who share flag 16 have their weapons read on their watch turn (2 reads) and recolored with their
-settings, as their Helldiver is.
+settings, as their Helldiver is. The game keeps inventory rows packed: an avatar removed (a death, a player leaving)
+has another row and its entity moved into its index (`0x9b2810` -> `0x9b15d0`; a new avatar's row is added last,
+`0x9b25c0`), so a squadmate's row is checked to be still theirs (`Weapons.owned`: one read of the inventory's head
++16 to +87, their index under the row count +20 and the entity +64 and row +80 arrays unmoved, then one 8-byte read of
+their row's entity) when it changed and on their binding check, found again when it moved, and found anew for a new
+avatar (a respawn). v1.5 read the row it found first: in a squad of four (2026-10-16) a death moved another player's
+row into a squadmate's, whose recolor then planned weapons already recolored (`weapons recolored, 0 materials`), and
+the moved player's recolor planned whatever came into its old row (a respawned squadmate's weapons, with its own
+settings).
 
 **Check against the game.** With a weapon scheme as Paint Scheme the weapons must look as the game paints them with
 that pattern (user 2026-10-15: "use mod options menu with weapon patterns selected for the mod as a control"). The
@@ -1400,6 +1437,7 @@ frames).
 | Recolor Weapons on, no weapon in hand (ship) | +1 `read_into` (48 bytes, the inventory row) on 1 frame in 4 (`frame % 4 == 2`); off: nothing | unmeasured in game |
 | Recolor Weapons on, a recolored weapon in hand | +1 `read_into` (8 bytes, its LUT binding) every frame, a second check per frame: a reload shows stock colors until it is seen, so a slower check would show them longer; the row on 1 frame in 4 | unmeasured in game |
 | Armory weapon preview | nothing added idle: the UI gate's read grows from 8 to 16 bytes (the ring head and tail); a head move: 1 read of slot 3 (232 bytes), then a rebind or a job (the paint composed: a few reads per customization id) | unmeasured in game |
+| A squadmate's recolored weapons | on their watch turn (1 frame in 4, round robin) +2 `read_into` (their weapon in hand's binding, their row); on their binding check (1 frame in 30, round robin) +2 (one texture probe) and +2 (their row still theirs: 72 and 8 bytes); a changed row: +2 before its resolve; a respawn or a moved row: their row found again (about 6 reads); pinned in `tests/test_sync.lua` | unmeasured in game |
 | Weapons changed | the weapons resolved (about 15 reads per weapon), then a rebind or a job | unmeasured in game |
 | First job of a session | the patch files listed (`FindFirstFileExW`, basic info, large fetch: 0.23 ms for 69 files outside the game, v1.3 before: 1.5 ms), 2 reads per patch file (v1.3 also read every indexed part up to 64 KB: thousands of reads with many mods); the disk cache read in 128 KB pieces | unmeasured in game |
 

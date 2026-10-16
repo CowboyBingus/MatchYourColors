@@ -4,9 +4,10 @@ Your helmet takes your armor's colors, or your armor takes your helmet's, or bot
 game's weapon paint schemes; your cape can follow. Pick them in the MODS tab of the escape menu (Mod Options Menu):
 **Color Matching**: Off, Helmet Matches Armor (default), Armor Matches Helmet or Helmet and Armor Match Cape;
 **Paint Scheme**: Off (default) or one of the 12 schemes. Five toggles beside them: **Leave Complete Sets**, **Recolor Hoods**, **Match Materials**,
-**Recolor Cape** and **Recolor Weapons**; **Recolor Squadmates**: Off (default), Squadmates Without the Mod or Everyone; and
-**Squadmates' Colors**: Their Own Gear (default) or Your Colors. Squadmates who use this mod see your colors and you
-theirs (**Sync With Mod Users**, always on, below).
+**Recolor Cape** and **Recolor Weapons**; **Recolor Squadmates**: Off (default), Squadmates Without the Mod or Everyone;
+**Squadmates' Colors**: Their Own Gear (default) or Your Colors; and **Hide Cape**: Off (default), Your Cape or
+Everyone's Capes. Squadmates who use this mod see your colors and you theirs (**Sync With Mod Users**, always on,
+below).
 
 The colors come from the game's own files while you play: for every helmet and armor the mod reads its paint,
 wear, metal and camo rows and works out which paint of one fits which paint of the other. It also ships a
@@ -141,6 +142,12 @@ Matching matches (your armor with Helmet Matches Armor, your helmet with Armor M
 and Armor Match Cape), so the squad matches you; their cape (with Recolor Cape) and weapons (with Recolor Weapons) take
 them too. With a Paint Scheme every squadmate takes the scheme either way.
 
+**Hide Cape** (Off by default) hides capes on Helldivers on the ship and in missions. **Your Cape** hides yours,
+on your screen and on the screens of squadmates who use this mod (it is shared like your colors);
+**Everyone's Capes** also hides every squadmate's cape on your screen. Players without this mod still see your
+cape. The Armory and the squad cards of the loadout screen keep showing capes, so you can still pick one. It works
+with Color Matching off too, and turning it off shows the capes again.
+
 ## Requirements and install
 
 - Helldivers 2 Steam build **25480438** (EXE 1.8.46015.0). The mod checks the game.dll and EXE hashes and every
@@ -183,7 +190,9 @@ weapon's own colors back on every reload, and the mod binds its colors again on 
 new mission or pickup of a weapon already recolored binds the existing colors again (about 15 reads per weapon); new
 weapons or paint work out their colors in the background like an item's. In the Armory its preview check shares the
 UI preview's read (16 bytes instead of 8). A squadmate who shares Recolor Weapons adds two reads on their turn of
-the squadmate check. It allocates nothing on frames without a change. Unmeasured in game.
+the squadmate check and four on their binding check (two of them make sure the game has not moved their weapons'
+record to another place, which it does when a Helldiver dies). It allocates nothing on frames without a change.
+Unmeasured in game.
 
 Recolor Squadmates adds nothing while it is Off. On, a squadmate it recolors costs what a sharing squadmate does: the
 lobby read every 120 frames also finds their Helldiver (27 memory reads in all with one such squadmate, 13 without),

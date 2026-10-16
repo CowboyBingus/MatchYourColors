@@ -36,6 +36,7 @@
   "src/albedo.lua",
   "src/lineup.lua",
   "src/options.lua",
+  "src/cloak.lua",
   "src/patches.lua",
   "src/preview.lua",
   "src/recolor.lua",
