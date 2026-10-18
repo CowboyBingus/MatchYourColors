@@ -165,7 +165,7 @@ game. Keep the shared loader as the winning Wwise startup replacement. The log i
 
 On an idle frame the mod makes one memory read of your Helldiver's equipment slots, plus one on every other frame
 when the game keeps a body-copy slot for you, two reads every 30 frames to check one recolored texture is still on
-(each texture in turn), one 8-byte read every 4th frame to see whether a UI preview of your Helldiver is shown (one
+(each texture in turn), one 16-byte read every 4th frame to see whether a UI preview of your Helldiver is shown (one
 read every frame while it is), and every 2 seconds about 20 reads to check your Helldiver and equipment; it
 allocates nothing.
 When your equipment changes it works out the colors in the background, aiming at 1.5 ms of work per frame (with a
@@ -189,7 +189,7 @@ recolored weapon is in your hands one 8-byte read every frame of its color textu
 weapon's own colors back on every reload, and the mod binds its colors again on the next frame. A reload, respawn,
 new mission or pickup of a weapon already recolored binds the existing colors again (about 15 reads per weapon); new
 weapons or paint work out their colors in the background like an item's. In the Armory its preview check shares the
-UI preview's read (16 bytes instead of 8). A squadmate who shares Recolor Weapons adds two reads on their turn of
+UI preview's read. A squadmate who shares Recolor Weapons adds two reads on their turn of
 the squadmate check and four on their binding check (two of them make sure the game has not moved their weapons'
 record to another place, which it does when a Helldiver dies). It allocates nothing on frames without a change.
 Unmeasured in game.
