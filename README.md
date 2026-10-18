@@ -94,7 +94,7 @@ simulated squad lobby). See [docs/TECHNICAL.md](docs/TECHNICAL.md).
   sheet (such as the Drape of Glory's) takes it in a copy of that sheet, the rest of the sheet as it is. The cape keeps
   its design's shapes and its cloth, which takes your colors as they show in the game, its sheen counted. A complete
   set that Leave Complete Sets keeps as it is still gives its colors to the cape.
-- **Recolor Weapons** (off by default): turned on, your primary, sidearm and support weapon take your colors the way
+- **Recolor Weapons** (experimental, off by default): turned on, your primary, sidearm and support weapon take your colors the way
   the game's weapon paint schemes repaint a weapon: body, details and trims, attachments and magazines, in the colors
   your helmet and armor take (the armor's, the helmet's or the cape's); when those colors include a camo, the weapon
   takes it too. The steel the game's schemes keep stays steel, and lenses and lights keep their colors. With one of the game's weapon paint schemes as Paint Scheme, your weapons wear that scheme as the game

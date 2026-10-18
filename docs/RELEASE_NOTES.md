@@ -1,4 +1,4 @@
-- New option, Recolor Weapons (Off by default): your primary, sidearm and support weapon take your colors the way the game's weapon paint schemes repaint a weapon, body, details and trims, attachments and magazines included. The colors are the ones your helmet and armor take (the armor's, the helmet's or the cape's), with a camo when those colors include one.
+- New option, Recolor Weapons (experimental, Off by default): your primary, sidearm and support weapon take your colors the way the game's weapon paint schemes repaint a weapon, body, details and trims, attachments and magazines included. The colors are the ones your helmet and armor take (the armor's, the helmet's or the cape's), with a camo when those colors include one.
 - With one of the game's weapon paint schemes picked as Paint Scheme and Recolor Weapons on, your weapons wear that scheme exactly as the game paints it.
 - In the Armory, the weapon you look at and the WEAPON CUSTOMIZATION preview show your weapon colors too.
 - Squadmates who use the mod with Recolor Weapons on see each other's weapons in their colors.
